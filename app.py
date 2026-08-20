@@ -1,5 +1,5 @@
 import streamlit as st
-from google import genai
+import requests
 
 # Page Config
 st.set_page_config(
@@ -8,7 +8,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Custom Styling (Sleek Dark Theme)
+# Sleek Dark UI Styling
 st.markdown("""
 <style>
     .stApp { background-color: #0E1117; color: #FFFFFF; }
@@ -29,46 +29,44 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">🦖 T-REX AI</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Powered by Gemini 3.6 Flash</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Free Unlimited AI • No Key Needed</div>', unsafe_allow_html=True)
 
-api_key = st.secrets.get("GEMINI_API_KEY", None)
-
+# Chat Memory
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+# Display Old Messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.write(message["content"])
 
+# User Input
 if prompt := st.chat_input("Ask T-Rex anything..."):
-    if not api_key:
-        st.error("API Key not found in Streamlit Secrets!")
-        st.stop()
-
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.write(prompt)
 
-    try:
-        client = genai.Client(api_key=api_key)
-        
-        with st.chat_message("assistant"):
-            system_prompt = f"You are T-Rex AI, a helpful, witty, and smart AI assistant. Answer concisely and quickly: {prompt}"
-            
-            response_stream = client.models.generate_content_stream(
-                model='gemini-3.6-flash',
-                contents=system_prompt
-            )
-            
-            message_placeholder = st.empty()
-            full_response = ""
-            for chunk in response_stream:
-                if chunk.text:
-                    full_response += chunk.text
-                    message_placeholder.markdown(full_response + "▌")
-            
-            message_placeholder.markdown(full_response)
-            st.session_state.messages.append({"role": "assistant", "content": full_response})
+    with st.chat_message("assistant"):
+        with st.spinner("T-Rex is thinking..."):
+            try:
+                # Direct Public AI Engine Request
+                response = requests.post(
+                    "https://text.pollinations.ai/",
+                    json={
+                        "messages": [
+                            {"role": "system", "content": "You are T-Rex AI, a smart, witty, and extremely fast AI assistant."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        "model": "openai"
+                    },
+                    timeout=15
+                )
                 
-    except Exception as e:
-        st.error(f"Error: {e}")
+                if response.status_code == 200:
+                    reply = response.text
+                    st.write(reply)
+                    st.session_state.messages.append({"role": "assistant", "content": reply})
+                else:
+                    st.error("Engine busy! Please try asking again.")
+            except Exception as e:
+                st.error("Network issue, please refresh and retry!")
