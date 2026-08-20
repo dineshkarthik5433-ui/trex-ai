@@ -1,5 +1,4 @@
 import streamlit as st
-import time
 from google import genai
 
 # Page Config
@@ -9,19 +8,28 @@ st.set_page_config(
     layout="centered"
 )
 
-# Optimized Custom Styling
+# Custom Styling (Sleek Dark Theme)
 st.markdown("""
 <style>
     .stApp { background-color: #0E1117; color: #FFFFFF; }
-    .main-title { font-size: 2.5rem; font-weight: 800; background: linear-gradient(90deg, #00FF87 0%, #60EFFF 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin-bottom: 0px; }
+    .main-title { 
+        font-size: 2.5rem; 
+        font-weight: 800; 
+        background: linear-gradient(90deg, #00FF87 0%, #60EFFF 100%); 
+        -webkit-background-clip: text; 
+        -webkit-text-fill-color: transparent; 
+        text-align: center; 
+        margin-bottom: 0px; 
+    }
     .sub-title { text-align: center; color: #8B949E; font-size: 0.95rem; margin-bottom: 30px; }
     .stChatMessage { background-color: #161B22 !important; border: 1px solid #30363D !important; border-radius: 12px !important; margin-bottom: 12px !important; }
-    #MainMenu {visibility: hidden;} footer {visibility: hidden;}
+    #MainMenu {visibility: hidden;} 
+    footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">🦖 T-REX AI</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Powered by gemini-2.5-flash • Instant Stream Fix</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Powered by Gemini 3.6 Flash</div>', unsafe_allow_html=True)
 
 api_key = st.secrets.get("GEMINI_API_KEY", None)
 
@@ -45,26 +53,20 @@ if prompt := st.chat_input("Ask T-Rex anything..."):
         client = genai.Client(api_key=api_key)
         
         with st.chat_message("assistant"):
-            system_prompt = f"You are T-Rex AI, a smart assistant. Query: {prompt}. Be quick!"
+            system_prompt = f"You are T-Rex AI, a helpful, witty, and smart AI assistant. Answer concisely and quickly: {prompt}"
             
-            # Streaming Enabled with context fix
             response_stream = client.models.generate_content_stream(
-                model='gemini-2.5-flash',
+                model='gemini-3.6-flash',
                 contents=system_prompt
             )
             
-            # Simple typing effect for perception of speed
             message_placeholder = st.empty()
             full_response = ""
             for chunk in response_stream:
                 if chunk.text:
                     full_response += chunk.text
-                    # Small delay between chunks for typing effect (0.01 sec)
-                    time.sleep(0.01)
-                    # Instant update in UI
                     message_placeholder.markdown(full_response + "▌")
             
-            # Final text without cursor
             message_placeholder.markdown(full_response)
             st.session_state.messages.append({"role": "assistant", "content": full_response})
                 
