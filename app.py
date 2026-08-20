@@ -7,16 +7,33 @@ st.set_page_config(
     layout="centered"
 )
 
-# Advanced Sleek UI Styling
+# Interactive Background Wave Effect (HTML/CSS Script)
 st.markdown("""
 <style>
-    /* Dark Gradient Background */
+    /* Dark Theme Base */
     .stApp {
-        background: linear-gradient(135deg, #0d1117 0%, #161b22 100%);
+        background-color: #0d1117;
         color: #f0f6fc;
     }
-    
-    /* Header Card Styling */
+
+    /* Interactive Mouse Canvas Overlay */
+    #bg-canvas {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        z-index: 0;
+        pointer-events: none;
+    }
+
+    /* Keep UI elements above background */
+    .block-container, .header-container, .stChatMessage, .stChatInputContainer {
+        position: relative;
+        z-index: 1 !important;
+    }
+
+    /* Header Styling */
     .header-container {
         text-align: center;
         padding: 24px 15px;
@@ -43,76 +60,108 @@ st.markdown("""
         font-size: 0.95rem;
     }
 
-    /* Custom Chat Message Cards */
+    /* Chat Messages */
     .stChatMessage {
-        background-color: #161b22 !important;
+        background-color: rgba(22, 27, 34, 0.85) !important;
         border: 1px solid #30363d !important;
         border-radius: 16px !important;
         padding: 14px 18px !important;
         margin-bottom: 12px !important;
+        backdrop-filter: blur(8px);
     }
 
-    /* Hide Unnecessary Streamlit UI Header/Footer */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 </style>
+
+<!-- Canvas for Interactive Waves/Glow -->
+<canvas id="bg-canvas"></canvas>
+
+<script>
+const canvas = document.getElementById('bg-canvas');
+const ctx = canvas.getContext('2d');
+
+let width = canvas.width = window.innerWidth;
+let height = canvas.height = window.innerHeight;
+
+window.addEventListener('resize', () => {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+});
+
+let mouse = { x: width / 2, y: height / 2 };
+let waves = [];
+
+window.addEventListener('mousemove', (e) => {
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+    
+    // Create new wave particle on mouse move
+    if (Math.random() > 0.3) {
+        waves.push({
+            x: mouse.x,
+            y: mouse.y,
+            radius: 5,
+            maxRadius: 120 + Math.random() * 80,
+            alpha: 0.6,
+            color: Math.random() > 0.5 ? '#00FF87' : '#60EFFF'
+        });
+    }
+});
+
+function animate() {
+    ctx.clearRect(0, 0, width, height);
+    
+    for (let i = 0; i < waves.length; i++) {
+        let w = waves[i];
+        ctx.beginPath();
+        ctx.arc(w.x, w.y, w.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = w.color;
+        ctx.globalAlpha = w.alpha;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        w.radius += 2.5;
+        w.alpha -= 0.012;
+        
+        if (w.alpha <= 0 || w.radius >= w.maxRadius) {
+            waves.splice(i, 1);
+            i--;
+        }
+    }
+    
+    requestAnimationFrame(animate);
+}
+animate();
+</script>
 """, unsafe_allow_html=True)
 
-# Main Header Area
+# Main UI Header
 st.markdown("""
 <div class="header-container">
     <div class="main-title">🦖 T-REX AI</div>
-    <div class="sub-title">Next-Gen Intelligent Interface • Custom Avatars & Quick Actions</div>
+    <div class="sub-title">Interactive Wave Background UI</div>
 </div>
 """, unsafe_allow_html=True)
 
-# Sidebar Options
-with st.sidebar:
-    st.title("⚙️ T-Rex Settings")
-    st.write("UI Version: **2.0 Ultra**")
-    st.markdown("---")
-    if st.button("🗑️ Clear Chat History", use_container_width=True):
-        st.session_state.messages = []
-        st.rerun()
-
-# Memory State Initialization
+# Chat Memory
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display Messages with Custom Avatars
+# Display Messages
 for message in st.session_state.messages:
     avatar = "👤" if message["role"] == "user" else "🦖"
     with st.chat_message(message["role"], avatar=avatar):
         st.write(message["content"])
 
-# Quick Suggestion Buttons (If No Messages Yet)
-if not st.session_state.messages:
-    st.write("**Suggested Prompts:**")
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if st.button("💡 Tell me a cool science fact", use_container_width=True):
-            st.session_state.selected_prompt = "Tell me a cool science fact"
-    with col2:
-        if st.button("💻 Write a Python Hello World code", use_container_width=True):
-            st.session_state.selected_prompt = "Write a Python Hello World code"
-
-# Input Handling
-prompt = st.chat_input("Message T-Rex AI...")
-
-if "selected_prompt" in st.session_state and st.session_state.selected_prompt:
-    prompt = st.session_state.selected_prompt
-    del st.session_state["selected_prompt"]
-
-if prompt:
-    # Render User Message
+# User Input Box
+if prompt := st.chat_input("Message T-Rex AI..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="👤"):
         st.write(prompt)
 
-    # Render Assistant Reply with Dino Avatar
     with st.chat_message("assistant", avatar="🦖"):
-        response = f"Custom UI Active! Received: '{prompt}'"
+        response = f"Interactive Wave UI active! Received: '{prompt}'"
         st.write(response)
         st.session_state.messages.append({"role": "assistant", "content": response})
