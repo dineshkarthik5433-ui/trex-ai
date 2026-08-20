@@ -8,7 +8,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Advanced Sleek UI Styling
+# Custom Styling for Gemini-Style Pill Input Bar
 st.markdown("""
 <style>
     .stApp {
@@ -16,56 +16,43 @@ st.markdown("""
         color: #f0f6fc;
     }
 
-    /* Modern Glassmorphism Header */
     .header-container {
         text-align: center;
-        padding: 24px 15px;
+        padding: 20px 15px;
         background: rgba(22, 27, 34, 0.65);
         backdrop-filter: blur(16px);
         border-radius: 20px;
         border: 1px solid rgba(0, 255, 135, 0.25);
         margin-bottom: 20px;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     }
 
     .main-title {
-        font-size: 2.8rem;
+        font-size: 2.5rem;
         font-weight: 900;
         background: linear-gradient(90deg, #00FF87 0%, #60EFFF 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        letter-spacing: 1.5px;
-        margin-bottom: 5px;
     }
 
-    .sub-title {
-        color: #8b949e;
-        font-size: 0.95rem;
+    /* Gemini Pill Bar Container Layout */
+    .gemini-bar-container {
+        display: flex;
+        align-items: center;
+        background: #1e1e1e;
+        border-radius: 50px;
+        padding: 6px 18px;
+        border: 1px solid #333;
+        margin-top: 15px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.4);
     }
 
-    /* Glowing Hover Effects on Chat Cards */
+    /* Chat Messages */
     .stChatMessage {
         background-color: rgba(22, 27, 34, 0.8) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 16px !important;
         padding: 14px 18px !important;
         margin-bottom: 12px !important;
-        backdrop-filter: blur(10px);
-        transition: all 0.3s ease;
-    }
-
-    .stChatMessage:hover {
-        border-color: rgba(0, 255, 135, 0.4) !important;
-        box-shadow: 0 0 15px rgba(0, 255, 135, 0.15);
-    }
-
-    /* File Uploader Container */
-    .stFileUploader {
-        background: rgba(22, 27, 34, 0.6) !important;
-        border: 1px dashed rgba(0, 255, 135, 0.3) !important;
-        border-radius: 16px !important;
-        padding: 8px !important;
-        margin-bottom: 15px !important;
     }
 
     #MainMenu {visibility: hidden;}
@@ -74,7 +61,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Dynamic Fluid Wave Background Component
+# Interactive Fluid Waves
 components.html("""
 <script>
 const parentDoc = window.parent.document;
@@ -139,64 +126,48 @@ renderFluidWaves();
 </script>
 """, height=0)
 
-# Sidebar Design
-with st.sidebar:
-    st.title("🦖 T-Rex Control Panel")
-    st.markdown("---")
-    st.write("🟢 **Status:** Active (Fluid UI)")
-    st.write("🎨 **Theme:** Cyberpunk Dark Glass")
-    st.markdown("---")
-    if st.button("🗑️ Clear Chat History", use_container_width=True):
-        st.session_state.messages = []
-        st.rerun()
-
-# Main UI Header
+# Main Header
 st.markdown("""
 <div class="header-container">
     <div class="main-title">🦖 T-REX AI</div>
-    <div class="sub-title">Futuristic Glassmorphic AI Interface</div>
 </div>
 """, unsafe_allow_html=True)
 
-# File Attachment Component
-uploaded_files = st.file_uploader(
-    "📎 Attach Documents, Media, or Files...",
-    type=["pdf", "txt", "docx", "mp3", "wav", "mp4", "mov", "png", "jpg"],
-    accept_multiple_files=True
-)
-
-if uploaded_files:
-    for file in uploaded_files:
-        file_ext = file.name.split('.')[-1].lower()
-        if file_ext in ["png", "jpg", "jpeg"]:
-            st.image(file, width=200)
-        elif file_ext in ["mp3", "wav"]:
-            st.audio(file)
-        elif file_ext in ["mp4", "mov"]:
-            st.video(file)
-
-# Memory Session Initialization
+# Chat Memory State
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display Message History
+if "show_file_uploader" not in st.session_state:
+    st.session_state.show_file_uploader = False
+
+# Render Previous Chat Messages
 for message in st.session_state.messages:
     avatar = "👤" if message["role"] == "user" else "🦖"
     with st.chat_message(message["role"], avatar=avatar):
         st.write(message["content"])
 
-# User Chat Input Box
-if prompt := st.chat_input("Message T-Rex AI..."):
+# Optional File Uploader Toggle
+if st.session_state.show_file_uploader:
+    uploaded_files = st.file_uploader("Upload Documents, Media, or Files", accept_multiple_files=True)
+
+# --- GEMINI UI BAR (Plus, Input, Model Dropdown, Mic) ---
+col1, col2, col3, col4 = st.columns([0.6, 6, 1.8, 0.6])
+
+with col1:
+    if st.button("➕", help="Attach files"):
+        st.session_state.show_file_uploader = not st.session_state.show_file_uploader
+        st.rerun()
+
+with col3:
+    selected_model = st.selectbox("", ["Flash", "Pro", "Ultra"], label_visibility="collapsed")
+
+with col4:
+    st.button("🎙️", help="Voice Input")
+
+with col2:
+    prompt = st.chat_input("Ask T-Rex...")
+
+# Processing Input
+if prompt:
     st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user", avatar="👤"):
-        st.write(prompt)
-
-    with st.chat_message("assistant", avatar="🦖"):
-        if uploaded_files:
-            file_names = ", ".join([f.name for f in uploaded_files])
-            response = f"UI Updated! Received message: '{prompt}' with attached files [{file_names}]."
-        else:
-            response = f"UI Updated! Received message: '{prompt}'"
-
-        st.write(response)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    st.rerun()
