@@ -1,4 +1,3 @@
 streamlit
 pypdf
-transformers
-torch
+sentence-transformers
