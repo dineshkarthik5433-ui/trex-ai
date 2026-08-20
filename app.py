@@ -2,15 +2,16 @@ import streamlit as st
 import pypdf
 import io
 import re
+from sentence_transformers import SentenceTransformer, util
 
-# Page Configuration
+# Page Config
 st.set_page_config(
     page_title="T-Rex AI",
     page_icon="🦖",
     layout="centered"
 )
 
-# Dark Neon Styling
+# Dark Neon Theme UI
 st.markdown("""
 <style>
     .stApp {
@@ -69,8 +70,15 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Extract Text From Uploaded Files
-def extract_text(files):
+# Load Local AI Embeddings Model (No Keys Required)
+@st.cache_resource
+def load_embed_model():
+    return SentenceTransformer('all-MiniLM-L6-v2')
+
+embed_model = load_embed_model()
+
+# Extract Text From PDF
+def extract_pdf_text(files):
     full_text = ""
     for file in files:
         if file.type == "application/pdf":
@@ -83,52 +91,47 @@ def extract_text(files):
             full_text += file.read().decode("utf-8") + "\n"
     return full_text
 
-# Clean Heading & Topic Extractor
-def extract_document_topics(text):
-    # Regex to capture section titles like 1.1, 1.2, Chapter names, or short heading lines
+# Topic Extractor without Duplicate Numbers
+def extract_clean_topics(text):
     lines = text.split("\n")
     topics = []
-    
     for line in lines:
         clean = line.strip()
-        # Heading filters: section numbers or short uppercase/title-case lines
+        # Clean heading patterns
         if re.match(r'^(?:\d+\.\d*|\d+\b|[A-Z0-9\s\.\-]{3,50})$', clean) or (len(clean) < 60 and clean.istitle()):
-            if clean not in topics and len(clean) > 3:
-                topics.append(clean)
-                
-    if not topics:
-        # Fallback: take first lines of paragraphs
-        paragraphs = [p.strip() for p in text.split("\n\n") if len(p.strip()) > 30]
-        for p in paragraphs[:10]:
-            first_line = p.split("\n")[0].strip()
-            if first_line not in topics:
-                topics.append(first_line[:60])
-                
-    return topics[:15]
+            # Strip extra starting digits to fix double numbering bug
+            cleaned_title = re.sub(r'^\d+[\.\s\-]+', '', clean)
+            if cleaned_title and cleaned_title not in topics and len(cleaned_title) > 3:
+                topics.append(cleaned_title)
+    return topics[:12]
 
-# Specific Query Content Search Engine
-def search_specific_query(query, text, limit):
-    paragraphs = [p.strip() for p in text.split("\n\n") if len(p.strip()) > 40]
-    if not paragraphs:
-        paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 40]
+# AI Vector Similarity Search
+def semantic_search(query, text, top_k):
+    chunks = [c.strip() for c in text.split("\n\n") if len(c.strip()) > 30]
+    if not chunks:
+        chunks = [c.strip() for c in text.split("\n") if len(c.strip()) > 30]
 
-    keywords = set(re.findall(r'\b[a-zA-Z]{3,}\b', query.lower())) - {"what", "how", "why", "give", "tell", "explain", "this", "that"}
-    
-    results = []
-    for p in paragraphs:
-        p_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', p.lower()))
-        match_count = len(keywords & p_words)
-        if match_count > 0:
-            results.append((match_count, p))
-            
-    results.sort(key=lambda x: x[0], reverse=True)
-    return [r[1] for r in results[:limit]]
+    if not chunks:
+        return []
 
-# Session State
+    query_embedding = embed_model.encode(query, convert_to_tensor=True)
+    chunk_embeddings = embed_model.encode(chunks, convert_to_tensor=True)
+
+    scores = util.cos_sim(query_embedding, chunk_embeddings)[0]
+    top_results = scores.topk(k=min(top_k, len(chunks)))
+
+    matched_chunks = []
+    for score, idx in zip(top_results[0], top_results[1]):
+        if score.item() > 0.25:  # Similarity threshold
+            matched_chunks.append(chunks[idx.item()])
+
+    return matched_chunks
+
+# Session State Initializer
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Control Bar
+# Header Dropdowns Bar
 col_attach, col_gap, col_model = st.columns([1.5, 4, 2])
 
 with col_attach:
@@ -149,41 +152,57 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"], avatar=avatar):
         st.write(message["content"])
 
-# User Chat Input Handling
-if prompt := st.chat_input("Document gurinchi emaina adugu bro..."):
+# User Chat Input
+if prompt := st.chat_input("Ask T-Rex AI anything..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="👤"):
         st.write(prompt)
 
     with st.chat_message("assistant", avatar="🦖"):
-        if uploaded_files:
-            raw_text = extract_text(uploaded_files)
+        prompt_lower = prompt.lower().strip()
+        
+        # Conversational handling for casual inputs like "ok", "hi"
+        casual_replies = {
+            "ok": "Got it! Let me know if you need anything else from the document.",
+            "okay": "Sure! Ask me any question about your PDF.",
+            "hi": "Hello! Upload your document and ask me anything.",
+            "hello": "Hey there! How can I help you analyze your document?",
+            "thanks": "You're welcome! Glad to help.",
+            "thank you": "You're welcome!"
+        }
+
+        if prompt_lower in casual_replies:
+            reply = casual_replies[prompt_lower]
+        elif uploaded_files:
+            raw_text = extract_pdf_text(uploaded_files)
             if raw_text.strip():
-                # Check if user is asking for topic list
-                topic_triggers = ["topic", "topics", "heading", "headings", "index", "contents", "table of contents", "outline"]
-                is_topic_request = any(trigger in prompt.lower() for trigger in topic_triggers)
+                topic_triggers = ["topic", "topics", "heading", "headings", "index", "contents", "table of contents"]
+                is_topic_request = any(t in prompt_lower for t in topic_triggers)
 
                 if is_topic_request:
-                    topics_list = extract_document_topics(raw_text)
-                    if topics_list:
-                        response_md = f"**🦖 PDF Document Topics ({model_choice}):**\n\n"
-                        for idx, topic in enumerate(topics_list, 1):
-                            response_md += f"{idx}. **{topic}**\n"
+                    topics = extract_clean_topics(raw_text)
+                    if topics:
+                        reply = f"**🦖 PDF Document Topics ({model_choice}):**\n\n"
+                        for idx, topic in enumerate(topics, 1):
+                            reply += f"• **{topic}**\n"
                     else:
-                        response_md = "Document lo clear headings emi detect avvaledu bro."
+                        reply = "No distinct topic headings were detected in this document."
                 else:
-                    limit = 2 if model_choice == "Flash ⚡" else 3 if model_choice == "Pro 🧠" else 5
-                    matched = search_specific_query(prompt, raw_text, limit)
-                    if matched:
-                        response_md = f"**🦖 Analysis Answer ({model_choice}):**\n\n"
-                        for idx, chunk in enumerate(matched, 1):
-                            response_md += f"**Point {idx}:**\n{chunk}\n\n---\n\n"
-                    else:
-                        response_md = f"Document lo '{prompt}' ki matching details em dorakaledu bro."
+                    k_val = 2 if model_choice == "Flash ⚡" else 3 if model_choice == "Pro 🧠" else 5
+                    results = semantic_search(prompt, raw_text, top_k=k_val)
 
-                st.write(response_md)
-                st.session_state.messages.append({"role": "assistant", "content": response_md})
+                    if results:
+                        reply = f"**🦖 T-Rex Analysis Results ({model_choice}):**\n\n"
+                        for idx, res in enumerate(results, 1):
+                            # Clean up redundant internal numbering
+                            clean_res = re.sub(r'^\d+[\.\s\-]+', '', res)
+                            reply += f"**Point {idx}:**\n{clean_res}\n\n---\n\n"
+                    else:
+                        reply = f"I couldn't find any relevant details for '{prompt}' in the document. Please try asking with different terms."
             else:
-                st.write("Uploaded file lo text emi ledhu bro.")
+                reply = "The uploaded file appears to be empty."
         else:
-            st.write(f"T-Rex Active ({model_choice})! Document upload chesi question adugu bro.")
+            reply = f"T-Rex Active ({model_choice})! Please attach a PDF or TXT document using the 📎 button to start analyzing."
+
+        st.write(reply)
+        st.session_state.messages.append({"role": "assistant", "content": reply})
