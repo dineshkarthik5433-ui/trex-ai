@@ -8,7 +8,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Custom Styling for Gemini-Style Pill Input Bar
+# Custom CSS for Single Unified Gemini Pill Bar
 st.markdown("""
 <style>
     .stApp {
@@ -34,19 +34,55 @@ st.markdown("""
         -webkit-text-fill-color: transparent;
     }
 
-    /* Gemini Pill Bar Container Layout */
-    .gemini-bar-container {
-        display: flex;
-        align-items: center;
-        background: #1e1e1e;
-        border-radius: 50px;
-        padding: 6px 18px;
-        border: 1px solid #333;
-        margin-top: 15px;
-        box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    /* Single Pill Bar Container */
+    [data-testid="stForm"] {
+        background-color: #1e1e1e !important;
+        border: 1px solid #333333 !important;
+        border-radius: 40px !important;
+        padding: 6px 15px !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
     }
 
-    /* Chat Messages */
+    /* Remove gaps between elements inside the pill */
+    [data-testid="stForm"] [data-testid="stHorizontalBlock"] {
+        align-items: center !important;
+        gap: 0px !important;
+    }
+
+    /* Remove individual box borders */
+    [data-testid="stForm"] button {
+        border: none !important;
+        background: transparent !important;
+        color: #e3e3e3 !important;
+        font-size: 1.2rem !important;
+        padding: 0px !important;
+        box-shadow: none !important;
+    }
+
+    [data-testid="stForm"] button:hover {
+        color: #00FF87 !important;
+        background: transparent !important;
+    }
+
+    /* Input text field styling inside pill */
+    [data-testid="stForm"] input {
+        background: transparent !important;
+        border: none !important;
+        color: #ffffff !important;
+        font-size: 1rem !important;
+        padding-left: 5px !important;
+        box-shadow: none !important;
+    }
+
+    /* Dropdown inside pill styling */
+    [data-testid="stForm"] [data-baseweb="select"] > div {
+        background: transparent !important;
+        border: none !important;
+        color: #e3e3e3 !important;
+        box-shadow: none !important;
+        font-size: 0.95rem !important;
+    }
+
     .stChatMessage {
         background-color: rgba(22, 27, 34, 0.8) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -61,7 +97,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Interactive Fluid Waves
+# Fluid Wave Background Component
 components.html("""
 <script>
 const parentDoc = window.parent.document;
@@ -126,48 +162,58 @@ renderFluidWaves();
 </script>
 """, height=0)
 
-# Main Header
+# Main UI Header
 st.markdown("""
 <div class="header-container">
     <div class="main-title">🦖 T-REX AI</div>
 </div>
 """, unsafe_allow_html=True)
 
-# Chat Memory State
+# Memory Initializer
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 if "show_file_uploader" not in st.session_state:
     st.session_state.show_file_uploader = False
 
-# Render Previous Chat Messages
+# Render Previous Chat History
 for message in st.session_state.messages:
     avatar = "👤" if message["role"] == "user" else "🦖"
     with st.chat_message(message["role"], avatar=avatar):
         st.write(message["content"])
 
-# Optional File Uploader Toggle
+# File Uploader Toggle Display
 if st.session_state.show_file_uploader:
-    uploaded_files = st.file_uploader("Upload Documents, Media, or Files", accept_multiple_files=True)
+    uploaded_files = st.file_uploader("📎 Upload Files", accept_multiple_files=True)
 
-# --- GEMINI UI BAR (Plus, Input, Model Dropdown, Mic) ---
-col1, col2, col3, col4 = st.columns([0.6, 6, 1.8, 0.6])
+# --- SINGLE UNIFIED GEMINI PILL BAR ---
+with st.form(key="gemini_pill_form", clear_on_submit=True):
+    col_plus, col_input, col_model, col_mic, col_submit = st.columns([0.5, 6, 1.5, 0.5, 0.5])
 
-with col1:
-    if st.button("➕", help="Attach files"):
-        st.session_state.show_file_uploader = not st.session_state.show_file_uploader
-        st.rerun()
+    with col_plus:
+        plus_btn = st.form_submit_button("➕")
 
-with col3:
-    selected_model = st.selectbox("", ["Flash", "Pro", "Ultra"], label_visibility="collapsed")
+    with col_input:
+        prompt_input = st.text_input("", placeholder="Ask T-Rex...", label_visibility="collapsed")
 
-with col4:
-    st.button("🎙️", help="Voice Input")
+    with col_model:
+        model_choice = st.selectbox("", ["Flash", "Pro", "Ultra"], label_visibility="collapsed")
 
-with col2:
-    prompt = st.chat_input("Ask T-Rex...")
+    with col_mic:
+        mic_btn = st.form_submit_button("🎙️")
 
-# Processing Input
-if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt})
+    with col_submit:
+        submit_btn = st.form_submit_button("➔")
+
+# Form Logic Handling
+if plus_btn:
+    st.session_state.show_file_uploader = not st.session_state.show_file_uploader
+    st.rerun()
+
+if submit_btn and prompt_input:
+    st.session_state.messages.append({"role": "user", "content": prompt_input})
+    
+    # Assistant Reply
+    reply = f"Received: '{prompt_input}' using [{model_choice}] model."
+    st.session_state.messages.append({"role": "assistant", "content": reply})
     st.rerun()
