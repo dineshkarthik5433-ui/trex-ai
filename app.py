@@ -8,7 +8,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Base Dark Styling
+# Base Styling
 st.markdown("""
 <style>
     .stApp {
@@ -57,37 +57,79 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Soft & Subtle Interactive Mouse Spotlight
+# Interactive Light Fluid Waves Component
 components.html("""
 <script>
 const parentDoc = window.parent.document;
-let glowDiv = parentDoc.getElementById('mouse-glow-bg');
+let canvas = parentDoc.getElementById('wave-canvas');
 
-if (!glowDiv) {
-    glowDiv = parentDoc.createElement('div');
-    glowDiv.id = 'mouse-glow-bg';
-    glowDiv.style.position = 'fixed';
-    glowDiv.style.top = '0';
-    glowDiv.style.left = '0';
-    glowDiv.style.width = '100vw';
-    glowDiv.style.height = '100vh';
-    glowDiv.style.pointerEvents = 'none';
-    glowDiv.style.zIndex = '0';
-    glowDiv.style.transition = 'background 0.15s ease-out';
-    parentDoc.body.appendChild(glowDiv);
+if (!canvas) {
+    canvas = parentDoc.createElement('canvas');
+    canvas.id = 'wave-canvas';
+    canvas.style.position = 'fixed';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.width = '100vw';
+    canvas.style.height = '100vh';
+    canvas.style.pointerEvents = 'none';
+    canvas.style.zIndex = '0';
+    parentDoc.body.appendChild(canvas);
 }
 
-parentDoc.addEventListener('mousemove', (e) => {
-    const x = e.clientX;
-    const y = e.clientY;
-    
-    // Very subtle, soft Radial Gradient Glow centered at mouse cursor
-    glowDiv.style.background = `radial-gradient(400px circle at ${x}px ${y}px, rgba(0, 255, 135, 0.08), rgba(96, 239, 255, 0.04), transparent 80%)`;
+const ctx = canvas.getContext('2d');
+let width = canvas.width = parentDoc.defaultView.innerWidth;
+let height = canvas.height = parentDoc.defaultView.innerHeight;
+
+parentDoc.defaultView.addEventListener('resize', () => {
+    width = canvas.width = parentDoc.defaultView.innerWidth;
+    height = canvas.height = parentDoc.defaultView.innerHeight;
 });
 
-parentDoc.addEventListener('mouseleave', () => {
-    glowDiv.style.background = 'transparent';
+let ripples = [];
+
+parentDoc.addEventListener('mousemove', (e) => {
+    // Mouse move avthunnappudu soft wave rings append avthayi
+    if (Math.random() > 0.2) {
+        ripples.push({
+            x: e.clientX,
+            y: e.clientY,
+            radius: 2,
+            maxRadius: 45 + Math.random() * 25,
+            alpha: 0.35,
+            color: Math.random() > 0.5 ? '#00FF87' : '#60EFFF'
+        });
+    }
 });
+
+function drawWaves() {
+    ctx.clearRect(0, 0, width, height);
+    
+    for (let i = 0; i < ripples.length; i++) {
+        let r = ripples[i];
+        
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = r.color;
+        ctx.lineWidth = 1.2;
+        ctx.globalAlpha = r.alpha;
+        ctx.stroke();
+        ctx.restore();
+
+        // Wave expanding effect
+        r.radius += 1.2;
+        r.alpha -= 0.008;
+
+        if (r.alpha <= 0 || r.radius >= r.maxRadius) {
+            ripples.splice(i, 1);
+            i--;
+        }
+    }
+    
+    requestAnimationFrame(drawWaves);
+}
+
+drawWaves();
 </script>
 """, height=0)
 
@@ -95,7 +137,7 @@ parentDoc.addEventListener('mouseleave', () => {
 st.markdown("""
 <div class="header-container">
     <div class="main-title">🦖 T-REX AI</div>
-    <div class="sub-title">Soft Mouse Spotlight Active</div>
+    <div class="sub-title">Soft Interactive Ripple Waves Active</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -116,6 +158,6 @@ if prompt := st.chat_input("Message T-Rex AI..."):
         st.write(prompt)
 
     with st.chat_message("assistant", avatar="🦖"):
-        response = f"Soft Glow UI Active! Received: '{prompt}'"
+        response = f"Fluid Wave UI Active! Received: '{prompt}'"
         st.write(response)
         st.session_state.messages.append({"role": "assistant", "content": response})
