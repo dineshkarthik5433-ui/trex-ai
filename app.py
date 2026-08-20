@@ -2,16 +2,15 @@ import streamlit as st
 import pypdf
 import io
 import re
-from transformers import pipeline
 
-# Page Config
+# Page Configuration
 st.set_page_config(
     page_title="T-Rex AI",
     page_icon="🦖",
     layout="centered"
 )
 
-# Custom High-Performance Styling
+# Dark Neon Styling
 st.markdown("""
 <style>
     .stApp {
@@ -22,7 +21,7 @@ st.markdown("""
     .header-container {
         text-align: center;
         padding: 15px;
-        background: rgba(22, 27, 34, 0.65);
+        background: rgba(22, 27, 34, 0.85);
         border-radius: 20px;
         border: 1px solid rgba(0, 255, 135, 0.25);
         margin-bottom: 20px;
@@ -57,14 +56,6 @@ st.markdown("""
         margin-bottom: 12px !important;
     }
 
-    .topic-box {
-        background: rgba(0, 255, 135, 0.05);
-        border-left: 4px solid #00FF87;
-        padding: 10px 15px;
-        margin-bottom: 15px;
-        border-radius: 4px;
-    }
-
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -78,8 +69,8 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Document Text Extractor
-def extract_document_text(files):
+# Extract Text From Uploaded Files
+def extract_text(files):
     full_text = ""
     for file in files:
         if file.type == "application/pdf":
@@ -92,40 +83,53 @@ def extract_document_text(files):
             full_text += file.read().decode("utf-8") + "\n"
     return full_text
 
-# Structural Topic Segmenter Logic
-def find_topic_segments(query, text, mode_limit):
-    # Separate topics by headings or section numbers (e.g., 1.1, 1.2, or All Caps)
-    sections = re.split(r'\n(?=[0-9]+\.[0-9]+|[A-Z\s]{4,}:)', text)
+# Clean Heading & Topic Extractor
+def extract_document_topics(text):
+    # Regex to capture section titles like 1.1, 1.2, Chapter names, or short heading lines
+    lines = text.split("\n")
+    topics = []
     
-    if len(sections) < 2:
-        sections = [s.strip() for s in text.split("\n\n") if len(s.strip()) > 50]
+    for line in lines:
+        clean = line.strip()
+        # Heading filters: section numbers or short uppercase/title-case lines
+        if re.match(r'^(?:\d+\.\d*|\d+\b|[A-Z0-9\s\.\-]{3,50})$', clean) or (len(clean) < 60 and clean.istitle()):
+            if clean not in topics and len(clean) > 3:
+                topics.append(clean)
+                
+    if not topics:
+        # Fallback: take first lines of paragraphs
+        paragraphs = [p.strip() for p in text.split("\n\n") if len(p.strip()) > 30]
+        for p in paragraphs[:10]:
+            first_line = p.split("\n")[0].strip()
+            if first_line not in topics:
+                topics.append(first_line[:60])
+                
+    return topics[:15]
 
-    query_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', query.lower()))
-    stopwords = {"what", "how", "why", "give", "tell", "topics", "pdf", "this", "that", "there"}
-    filtered_query = query_words - stopwords
+# Specific Query Content Search Engine
+def search_specific_query(query, text, limit):
+    paragraphs = [p.strip() for p in text.split("\n\n") if len(p.strip()) > 40]
+    if not paragraphs:
+        paragraphs = [p.strip() for p in text.split("\n") if len(p.strip()) > 40]
 
-    matched_results = []
+    keywords = set(re.findall(r'\b[a-zA-Z]{3,}\b', query.lower())) - {"what", "how", "why", "give", "tell", "explain", "this", "that"}
+    
+    results = []
+    for p in paragraphs:
+        p_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', p.lower()))
+        match_count = len(keywords & p_words)
+        if match_count > 0:
+            results.append((match_count, p))
+            
+    results.sort(key=lambda x: x[0], reverse=True)
+    return [r[1] for r in results[:limit]]
 
-    for section in sections:
-        section_lower = section.lower()
-        # Calculate overlap score
-        score = sum(1 for word in filtered_query if word in section_lower)
-        if score > 0 or not filtered_query:
-            # Extract First Line as Topic Title
-            lines = [l.strip() for l in section.split("\n") if l.strip()]
-            topic_title = lines[0] if lines else "General Topic"
-            content = " ".join(lines[1:]) if len(lines) > 1 else section
-            matched_results.append((score, topic_title, content))
-
-    matched_results.sort(key=lambda x: x[0], reverse=True)
-    return matched_results[:mode_limit]
-
-# Session State Initializer
+# Session State
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 # Control Bar
-col_attach, col_space, col_model = st.columns([1.5, 4, 2])
+col_attach, col_gap, col_model = st.columns([1.5, 4, 2])
 
 with col_attach:
     attach_pop = st.popover("📎 Attach Document")
@@ -145,7 +149,7 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"], avatar=avatar):
         st.write(message["content"])
 
-# User Chat Input
+# User Chat Input Handling
 if prompt := st.chat_input("Document gurinchi emaina adugu bro..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="👤"):
@@ -153,24 +157,33 @@ if prompt := st.chat_input("Document gurinchi emaina adugu bro..."):
 
     with st.chat_message("assistant", avatar="🦖"):
         if uploaded_files:
-            raw_text = extract_document_text(uploaded_files)
+            raw_text = extract_text(uploaded_files)
             if raw_text.strip():
-                limit = 2 if model_choice == "Flash ⚡" else 4 if model_choice == "Pro 🧠" else 7
-                segments = find_topic_segments(prompt, raw_text, mode_limit=limit)
+                # Check if user is asking for topic list
+                topic_triggers = ["topic", "topics", "heading", "headings", "index", "contents", "table of contents", "outline"]
+                is_topic_request = any(trigger in prompt.lower() for trigger in topic_triggers)
 
-                if segments:
-                    response_md = f"**🦖 T-Rex Structured Analysis ({model_choice}):**\n\n"
-                    for idx, (score, title, body) in enumerate(segments, 1):
-                        response_md += f"📌 **Topic {idx}: {title}**\n\n{body}\n\n---\n\n"
-                    st.markdown(response_md)
-                    st.session_state.messages.append({"role": "assistant", "content": response_md})
+                if is_topic_request:
+                    topics_list = extract_document_topics(raw_text)
+                    if topics_list:
+                        response_md = f"**🦖 PDF Document Topics ({model_choice}):**\n\n"
+                        for idx, topic in enumerate(topics_list, 1):
+                            response_md += f"{idx}. **{topic}**\n"
+                    else:
+                        response_md = "Document lo clear headings emi detect avvaledu bro."
                 else:
-                    err_msg = f"Document lo '{prompt}' ki matching topics ledu bro."
-                    st.write(err_msg)
-                    st.session_state.messages.append({"role": "assistant", "content": err_msg})
+                    limit = 2 if model_choice == "Flash ⚡" else 3 if model_choice == "Pro 🧠" else 5
+                    matched = search_specific_query(prompt, raw_text, limit)
+                    if matched:
+                        response_md = f"**🦖 Analysis Answer ({model_choice}):**\n\n"
+                        for idx, chunk in enumerate(matched, 1):
+                            response_md += f"**Point {idx}:**\n{chunk}\n\n---\n\n"
+                    else:
+                        response_md = f"Document lo '{prompt}' ki matching details em dorakaledu bro."
+
+                st.write(response_md)
+                st.session_state.messages.append({"role": "assistant", "content": response_md})
             else:
-                st.write("PDF lo text blank undi bro.")
+                st.write("Uploaded file lo text emi ledhu bro.")
         else:
-            def_msg = f"T-Rex Ready ({model_choice})! Attach document option dwara PDF upload cheyi bro."
-            st.write(def_msg)
-            st.session_state.messages.append({"role": "assistant", "content": def_msg})
+            st.write(f"T-Rex Active ({model_choice})! Document upload chesi question adugu bro.")
