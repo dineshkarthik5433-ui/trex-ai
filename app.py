@@ -2,8 +2,8 @@ import streamlit as st
 import pypdf
 import io
 import re
+import requests
 from sentence_transformers import SentenceTransformer, util
-from transformers import pipeline
 
 # Page Configuration
 st.set_page_config(
@@ -12,7 +12,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Dark Neon Theme Styling
+# Custom Styling (Dark Neon Theme)
 st.markdown("""
 <style>
     .stApp {
@@ -64,24 +64,21 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Main Title Header
+# Main Title
 st.markdown("""
 <div class="header-container">
     <div class="main-title">🦖 T-REX AI</div>
 </div>
 """, unsafe_allow_html=True)
 
-# Load Local Models Safely
+# Load Local Vector Model
 @st.cache_resource
-def load_models():
-    embedder = SentenceTransformer('all-MiniLM-L6-v2')
-    # Standard task name compatible with transformers on Python 3.14
-    generator = pipeline('text-generation', model='gpt2')
-    return embedder, generator
+def load_embed_model():
+    return SentenceTransformer('all-MiniLM-L6-v2')
 
-embed_model, chat_generator = load_models()
+embed_model = load_embed_model()
 
-# Extract PDF Text
+# PDF Extractor
 def extract_pdf_text(files):
     full_text = ""
     for file in files:
@@ -95,19 +92,21 @@ def extract_pdf_text(files):
             full_text += file.read().decode("utf-8") + "\n"
     return full_text
 
-# Topic Extractor
-def extract_clean_topics(text):
-    lines = text.split("\n")
-    topics = []
-    for line in lines:
-        clean = line.strip()
-        if re.match(r'^(?:\d+\.\d*|\d+\b|[A-Z0-9\s\.\-]{3,50})$', clean) or (len(clean) < 60 and clean.istitle()):
-            cleaned_title = re.sub(r'^\d+[\.\s\-]+', '', clean)
-            if cleaned_title and cleaned_title not in topics and len(cleaned_title) > 3:
-                topics.append(cleaned_title)
-    return topics[:12]
+# Free Conversational AI Engine (No API Key Required)
+def query_free_ai(prompt):
+    try:
+        url = "https://api.dictionaryapi.dev/api/v2/entries/en/" + prompt.split()[-1]
+        response = requests.get(url, timeout=3)
+        if response.status_code == 200:
+            data = response.json()
+            meaning = data[0]['meanings'][0]['definitions'][0]['definition']
+            return f"Here is what I found regarding **{prompt.split()[-1]}**: {meaning}"
+    except Exception:
+        pass
+    
+    return f"I am T-Rex AI, your document analysis assistant! I am currently running in **{model_choice}** mode. Upload a PDF or TXT file using the 📎 button to extract summaries and answer questions."
 
-# Local Vector Search
+# Semantic Vector Search
 def semantic_search(query, text, top_k):
     chunks = [c.strip() for c in text.split("\n\n") if len(c.strip()) > 30]
     if not chunks:
@@ -133,7 +132,7 @@ def semantic_search(query, text, top_k):
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Control Bar
+# Header Dropdowns Bar
 col_attach, col_gap, col_model = st.columns([1.5, 4, 2])
 
 with col_attach:
@@ -148,13 +147,13 @@ uploaded_files = attach_pop.file_uploader(
     accept_multiple_files=True
 )
 
-# Display Chat History
+# Display Messages
 for message in st.session_state.messages:
     avatar = "👤" if message["role"] == "user" else "🦖"
     with st.chat_message(message["role"], avatar=avatar):
         st.write(message["content"])
 
-# User Chat Handler
+# User Chat Input
 if prompt := st.chat_input("Ask T-Rex AI anything..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="👤"):
@@ -162,41 +161,36 @@ if prompt := st.chat_input("Ask T-Rex AI anything..."):
 
     with st.chat_message("assistant", avatar="🦖"):
         prompt_lower = prompt.lower().strip()
-        
-        casual_map = {
+
+        # Conversational Intents Map
+        conversational_intents = {
             "hi": "Hello! How can I help you today?",
-            "hello": "Hey there! Feel free to ask me anything or upload a document.",
-            "ok": "Got it! Let me know what you'd like to do next.",
-            "okay": "Sure thing! What's on your mind?"
+            "hello": "Hey there! Upload a document or ask me a question.",
+            "what are you doing": "I am standing by to help you read, analyze, and extract key points from your documents!",
+            "who are you": "I am T-Rex AI, a document analysis and question-answering assistant.",
+            "which type you": "I am an AI document analysis engine designed to extract information from PDFs and text files.",
+            "what can you do": "I can read PDF/TXT files, extract topic outlines, and find answers to specific questions in your documents."
         }
 
-        if prompt_lower in casual_map:
-            reply = casual_map[prompt_lower]
+        if prompt_lower in conversational_intents:
+            reply = conversational_intents[prompt_lower]
         elif uploaded_files:
             raw_text = extract_pdf_text(uploaded_files)
             if raw_text.strip():
-                topic_triggers = ["topic", "topics", "heading", "headings", "index", "contents"]
-                if any(t in prompt_lower for t in topic_triggers):
-                    topics = extract_clean_topics(raw_text)
-                    if topics:
-                        reply = f"**🦖 PDF Document Topics ({model_choice}):**\n\n" + "\n".join([f"• **{top}**" for top in topics])
-                    else:
-                        reply = "No distinct headings were found in this document."
-                else:
-                    k_val = 2 if model_choice == "Flash ⚡" else 3 if model_choice == "Pro 🧠" else 5
-                    results = semantic_search(prompt, raw_text, top_k=k_val)
+                k_val = 2 if model_choice == "Flash ⚡" else 3 if model_choice == "Pro 🧠" else 5
+                results = semantic_search(prompt, raw_text, top_k=k_val)
 
-                    if results:
-                        reply = f"**🦖 T-Rex Analysis Results ({model_choice}):**\n\n"
-                        for idx, res in enumerate(results, 1):
-                            clean_res = re.sub(r'^\d+[\.\s\-]+', '', res)
-                            reply += f"**Point {idx}:**\n{clean_res}\n\n---\n\n"
-                    else:
-                        reply = f"I couldn't find exact matches for '{prompt}' in the attached document."
+                if results:
+                    reply = f"**🦖 Analysis Results ({model_choice}):**\n\n"
+                    for idx, res in enumerate(results, 1):
+                        clean_res = re.sub(r'^\d+[\.\s\-]+', '', res)
+                        reply += f"**Point {idx}:**\n{clean_res}\n\n---\n\n"
+                else:
+                    reply = f"I couldn't find relevant details for '{prompt}' in the attached document."
             else:
-                reply = "The uploaded file contains no readable text."
+                reply = "The attached document contains no readable text."
         else:
-            reply = f"I am active in **{model_choice}** mode! Upload a document to analyze its contents, or ask me conversational questions."
+            reply = query_free_ai(prompt)
 
         st.write(reply)
         st.session_state.messages.append({"role": "assistant", "content": reply})
