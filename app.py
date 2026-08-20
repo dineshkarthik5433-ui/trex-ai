@@ -8,7 +8,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Base Dark Styling
+# Advanced Sleek UI Styling
 st.markdown("""
 <style>
     .stApp {
@@ -16,15 +16,16 @@ st.markdown("""
         color: #f0f6fc;
     }
 
+    /* Modern Glassmorphism Header */
     .header-container {
         text-align: center;
         padding: 24px 15px;
-        background: rgba(22, 27, 34, 0.75);
-        backdrop-filter: blur(12px);
+        background: rgba(22, 27, 34, 0.65);
+        backdrop-filter: blur(16px);
         border-radius: 20px;
-        border: 1px solid rgba(0, 255, 135, 0.2);
+        border: 1px solid rgba(0, 255, 135, 0.25);
         margin-bottom: 20px;
-        box-shadow: 0 0 15px rgba(0, 255, 135, 0.1);
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     }
 
     .main-title {
@@ -42,23 +43,29 @@ st.markdown("""
         font-size: 0.95rem;
     }
 
-    /* Custom File Uploader Style */
-    .stFileUploader {
-        background: rgba(22, 27, 34, 0.8) !important;
-        border: 1px dashed rgba(0, 255, 135, 0.4) !important;
-        border-radius: 16px !important;
-        padding: 10px !important;
-        margin-bottom: 20px !important;
-        backdrop-filter: blur(8px);
-    }
-
+    /* Glowing Hover Effects on Chat Cards */
     .stChatMessage {
-        background-color: rgba(22, 27, 34, 0.85) !important;
-        border: 1px solid #30363d !important;
+        background-color: rgba(22, 27, 34, 0.8) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
         border-radius: 16px !important;
         padding: 14px 18px !important;
         margin-bottom: 12px !important;
-        backdrop-filter: blur(8px);
+        backdrop-filter: blur(10px);
+        transition: all 0.3s ease;
+    }
+
+    .stChatMessage:hover {
+        border-color: rgba(0, 255, 135, 0.4) !important;
+        box-shadow: 0 0 15px rgba(0, 255, 135, 0.15);
+    }
+
+    /* File Uploader Container */
+    .stFileUploader {
+        background: rgba(22, 27, 34, 0.6) !important;
+        border: 1px dashed rgba(0, 255, 135, 0.3) !important;
+        border-radius: 16px !important;
+        padding: 8px !important;
+        margin-bottom: 15px !important;
     }
 
     #MainMenu {visibility: hidden;}
@@ -67,7 +74,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Interactive Fluid Waves Component
+# Dynamic Fluid Wave Background Component
 components.html("""
 <script>
 const parentDoc = window.parent.document;
@@ -132,47 +139,54 @@ renderFluidWaves();
 </script>
 """, height=0)
 
-# Main Header
+# Sidebar Design
+with st.sidebar:
+    st.title("🦖 T-Rex Control Panel")
+    st.markdown("---")
+    st.write("🟢 **Status:** Active (Fluid UI)")
+    st.write("🎨 **Theme:** Cyberpunk Dark Glass")
+    st.markdown("---")
+    if st.button("🗑️ Clear Chat History", use_container_width=True):
+        st.session_state.messages = []
+        st.rerun()
+
+# Main UI Header
 st.markdown("""
 <div class="header-container">
     <div class="main-title">🦖 T-REX AI</div>
-    <div class="sub-title">Multimodal Supported AI Interface</div>
+    <div class="sub-title">Futuristic Glassmorphic AI Interface</div>
 </div>
 """, unsafe_allow_html=True)
 
-# File Attachment Box (Upload Documents, Videos, Audios, Images)
+# File Attachment Component
 uploaded_files = st.file_uploader(
-    "📎 Attach Files, Documents, Audio, or Videos...",
+    "📎 Attach Documents, Media, or Files...",
     type=["pdf", "txt", "docx", "mp3", "wav", "mp4", "mov", "png", "jpg"],
     accept_multiple_files=True
 )
 
-# File Preview Logic
 if uploaded_files:
-    st.write("📂 **Uploaded Attachments:**")
     for file in uploaded_files:
         file_ext = file.name.split('.')[-1].lower()
         if file_ext in ["png", "jpg", "jpeg"]:
-            st.image(file, width=250)
+            st.image(file, width=200)
         elif file_ext in ["mp3", "wav"]:
             st.audio(file)
         elif file_ext in ["mp4", "mov"]:
             st.video(file)
-        else:
-            st.info(file.name)
 
-# Chat Memory
+# Memory Session Initialization
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Render Previous Chat Messages
+# Display Message History
 for message in st.session_state.messages:
-    avatar = "👤" if message["role"] == "user" else "REX"
+    avatar = "👤" if message["role"] == "user" else "🦖"
     with st.chat_message(message["role"], avatar=avatar):
         st.write(message["content"])
 
-# Chat Input Box
-if prompt := st.chat_input("Message T-Rex AI or ask about attached files..."):
+# User Chat Input Box
+if prompt := st.chat_input("Message T-Rex AI..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="👤"):
         st.write(prompt)
@@ -180,9 +194,9 @@ if prompt := st.chat_input("Message T-Rex AI or ask about attached files..."):
     with st.chat_message("assistant", avatar="🦖"):
         if uploaded_files:
             file_names = ", ".join([f.name for f in uploaded_files])
-            response = f"Received your prompt: '{prompt}' along with attached file(s): [{file_names}]."
+            response = f"UI Updated! Received message: '{prompt}' with attached files [{file_names}]."
         else:
-            response = f"Received prompt: '{prompt}'"
+            response = f"UI Updated! Received message: '{prompt}'"
 
         st.write(response)
         st.session_state.messages.append({"role": "assistant", "content": response})
