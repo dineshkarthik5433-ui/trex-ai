@@ -1,6 +1,2 @@
 streamlit
 pypdf
-sentence-transformers
-faiss-cpu
-langchain
-langchain-community
