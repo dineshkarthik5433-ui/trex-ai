@@ -12,7 +12,7 @@ st.set_page_config(
 st.markdown("""
 <style>
     .stApp {
-        background-color: #0d1117;
+        background-color: #0b0f17;
         color: #f0f6fc;
     }
 
@@ -57,15 +57,15 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Interactive Light Fluid Waves Component
+# Interactive Dynamic Fluid Sine Wave Mesh Canvas
 components.html("""
 <script>
 const parentDoc = window.parent.document;
-let canvas = parentDoc.getElementById('wave-canvas');
+let canvas = parentDoc.getElementById('fluid-wave-canvas');
 
 if (!canvas) {
     canvas = parentDoc.createElement('canvas');
-    canvas.id = 'wave-canvas';
+    canvas.id = 'fluid-wave-canvas';
     canvas.style.position = 'fixed';
     canvas.style.top = '0';
     canvas.style.left = '0';
@@ -85,51 +85,64 @@ parentDoc.defaultView.addEventListener('resize', () => {
     height = canvas.height = parentDoc.defaultView.innerHeight;
 });
 
-let ripples = [];
+let mouse = { x: width / 2, y: height / 2, targetX: width / 2, targetY: height / 2 };
 
 parentDoc.addEventListener('mousemove', (e) => {
-    // Mouse move avthunnappudu soft wave rings append avthayi
-    if (Math.random() > 0.2) {
-        ripples.push({
-            x: e.clientX,
-            y: e.clientY,
-            radius: 2,
-            maxRadius: 45 + Math.random() * 25,
-            alpha: 0.35,
-            color: Math.random() > 0.5 ? '#00FF87' : '#60EFFF'
-        });
-    }
+    mouse.targetX = e.clientX;
+    mouse.targetY = e.clientY;
 });
 
-function drawWaves() {
+let step = 0;
+
+function renderFluidWaves() {
     ctx.clearRect(0, 0, width, height);
     
-    for (let i = 0; i < ripples.length; i++) {
-        let r = ripples[i];
-        
-        ctx.save();
-        ctx.beginPath();
-        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
-        ctx.strokeStyle = r.color;
-        ctx.lineWidth = 1.2;
-        ctx.globalAlpha = r.alpha;
-        ctx.stroke();
-        ctx.restore();
-
-        // Wave expanding effect
-        r.radius += 1.2;
-        r.alpha -= 0.008;
-
-        if (r.alpha <= 0 || r.radius >= r.maxRadius) {
-            ripples.splice(i, 1);
-            i--;
-        }
-    }
+    // Smooth Mouse Interpolation
+    mouse.x += (mouse.targetX - mouse.x) * 0.05;
+    mouse.y += (mouse.targetY - mouse.y) * 0.05;
     
-    requestAnimationFrame(drawWaves);
+    step += 0.015;
+
+    const waveLines = 5;
+    for (let i = 0; i < waveLines; i++) {
+        ctx.beginPath();
+        ctx.lineWidth = 1.5;
+        
+        let colorGrad = ctx.createLinearGradient(0, 0, width, 0);
+        colorGrad.addColorStop(0, 'rgba(0, 255, 135, 0.02)');
+        colorGrad.addColorStop(0.5, i % 2 === 0 ? 'rgba(0, 255, 135, 0.12)' : 'rgba(96, 239, 255, 0.12)');
+        colorGrad.addColorStop(1, 'rgba(96, 239, 255, 0.02)');
+        
+        ctx.strokeStyle = colorGrad;
+
+        for (let x = 0; x <= width; x += 20) {
+            // Distance from mouse position to curve point
+            let dx = x - mouse.x;
+            let distSq = dx * dx;
+            let mouseDist = Math.sqrt(distSq);
+            
+            // Mouse Interaction Offset (Smooth Sine Elevation near Mouse)
+            let mouseEffect = Math.exp(-distSq / (180 * 180)) * (mouse.y - height / 2) * 0.35;
+
+            // Wave Sine Calculation
+            let y = height / 2 + 
+                    Math.sin(x * 0.005 + step + i * 0.8) * 45 + 
+                    Math.cos(x * 0.008 - step + i) * 20 + 
+                    mouseEffect;
+
+            if (x === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+        ctx.stroke();
+    }
+
+    requestAnimationFrame(renderFluidWaves);
 }
 
-drawWaves();
+renderFluidWaves();
 </script>
 """, height=0)
 
@@ -137,7 +150,7 @@ drawWaves();
 st.markdown("""
 <div class="header-container">
     <div class="main-title">🦖 T-REX AI</div>
-    <div class="sub-title">Soft Interactive Ripple Waves Active</div>
+    <div class="sub-title">Smooth Liquid Wave Mesh Engine Active</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -158,6 +171,6 @@ if prompt := st.chat_input("Message T-Rex AI..."):
         st.write(prompt)
 
     with st.chat_message("assistant", avatar="🦖"):
-        response = f"Fluid Wave UI Active! Received: '{prompt}'"
+        response = f"Liquid Wave Mesh UI Active! Received: '{prompt}'"
         st.write(response)
         st.session_state.messages.append({"role": "assistant", "content": response})
