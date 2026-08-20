@@ -2,9 +2,9 @@ import streamlit as st
 import streamlit.components.v1 as components
 import pypdf
 import io
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
+import re
+import math
+from collections import Counter
 
 # Page Config
 st.set_page_config(
@@ -66,7 +66,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Fluid Waves Background Component
+# Fluid Waves Animation
 components.html("""
 <script>
 const parentDoc = window.parent.document;
@@ -138,42 +138,57 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Helper Function: Extract Raw Text from Uploaded PDFs
-def extract_text(files):
-    raw_text = ""
+# Document Text Parsing Engine
+def extract_document_text(files):
+    text_data = ""
     for file in files:
         if file.type == "application/pdf":
             reader = pypdf.PdfReader(io.BytesIO(file.read()))
             for page in reader.pages:
-                text = page.extract_text()
-                if text:
-                    raw_text += text + "\n"
+                extracted = page.extract_text()
+                if extracted:
+                    text_data += extracted + "\n"
         elif file.type in ["text/plain", "text/markdown"]:
-            raw_text += file.read().decode("utf-8") + "\n"
-    return raw_text
+            text_data += file.read().decode("utf-8") + "\n"
+    return text_data
 
-# Load Open-Source Free Vector Embeddings Engine
-@st.cache_resource
-def get_embedding_model():
-    return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+# Built-in Pure Vector Cosine Similarity Search Engine
+def cosine_similarity_search(query, text, top_k):
+    # Sentence Chunking
+    sentences = re.split(r'(?<=[.?!])\s+', text)
+    chunks = [s.strip() for s in sentences if len(s.strip()) > 15]
 
-embedding_model = get_embedding_model()
+    if not chunks:
+        return []
 
-# Build Vector Store (RAG Pipeline)
-def build_vector_store(text):
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=50
-    )
-    chunks = text_splitter.split_text(text)
-    vector_db = FAISS.from_texts(chunks, embedding_model)
-    return vector_db
+    # Vectorizer
+    def text_to_vector(text_str):
+        words = re.findall(r'\w+', text_str.lower())
+        return Counter(words)
 
-# Session Initializations
+    query_vec = text_to_vector(query)
+
+    scores = []
+    for chunk in chunks:
+        chunk_vec = text_to_vector(chunk)
+        intersection = set(query_vec.keys()) & set(chunk_vec.keys())
+        
+        numerator = sum([query_vec[x] * chunk_vec[x] for x in intersection])
+        sum1 = sum([query_vec[x]**2 for x in query_vec.keys()])
+        sum2 = sum([chunk_vec[x]**2 for x in chunk_vec.keys()])
+        denominator = math.sqrt(sum1) * math.sqrt(sum2)
+
+        score = numerator / denominator if denominator else 0.0
+        scores.append((score, chunk))
+
+    scores.sort(key=lambda x: x[0], reverse=True)
+    return [item[1] for item in scores[:top_k] if item[0] > 0]
+
+# Session State
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Top Control Bar
+# Control Bar
 col_toggle, col_space, col_model = st.columns([1.5, 4, 2])
 
 with col_toggle:
@@ -202,26 +217,21 @@ if prompt := st.chat_input("Ask T-Rex about your document..."):
 
     with st.chat_message("assistant", avatar="🦖"):
         if uploaded_files:
-            with st.spinner("🦖 RAG Agent indexing & analyzing document..."):
-                raw_text = extract_text(uploaded_files)
-                if raw_text.strip():
-                    # 1. Chunking & FAISS Vector DB Generation
-                    vector_db = build_vector_store(raw_text)
-                    
-                    # 2. Similarity Search Retrieval
-                    k_val = 3 if model_choice == "Flash ⚡" else 6 if model_choice == "Pro 🧠" else 10
-                    retrieved_docs = vector_db.similarity_search(prompt, k=k_val)
-                    
-                    # 3. Construct Contextual RAG Response
-                    context_chunks = [doc.page_content for doc in retrieved_docs]
-                    
-                    response_text = f"**🦖 RAG Agent Analysis ({model_choice}):**\n\n"
-                    for idx, chunk in enumerate(context_chunks, 1):
-                        response_text += f"**Relevant Segment {idx}:**\n\"{chunk.strip()}\"\n\n"
-                else:
-                    response_text = "Uploaded PDF/TXT file lo text format match avvaledu. High-quality text PDF try cheyandi."
-        else:
-            response_text = f"T-Rex RAG Agent Active ({model_choice})! Document upload chesi search cheyandi, Vector Indexing dwara exact precise information retrieve chestundhi."
+            raw_text = extract_document_text(uploaded_files)
+            if raw_text.strip():
+                k_val = 3 if model_choice == "Flash ⚡" else 5 if model_choice == "Pro 🧠" else 8
+                relevant_chunks = cosine_similarity_search(prompt, raw_text, top_k=k_val)
 
-        st.write(response_text)
-        st.session_state.messages.append({"role": "assistant", "content": response_text})
+                if relevant_chunks:
+                    reply = f"**🦖 T-Rex RAG Agent Analysis ({model_choice}):**\n\n"
+                    for idx, chunk in enumerate(relevant_chunks, 1):
+                        reply += f"• **Match {idx}:** {chunk}\n\n"
+                else:
+                    reply = f"Document lo '{prompt}' ki direct semantic matches dorakaledu bro. Try broader terms."
+            else:
+                reply = "Document text extract avvaledu. Valid PDF/TXT file upload cheyandi."
+        else:
+            reply = f"T-Rex RAG Agent Active ({model_choice})! Upload document to search with local vector similarity."
+
+        st.write(reply)
+        st.session_state.messages.append({"role": "assistant", "content": reply})
