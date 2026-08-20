@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 from google import genai
 
 # Page Config
@@ -8,46 +9,19 @@ st.set_page_config(
     layout="centered"
 )
 
-# Custom Styling (Sleek Dark Theme)
+# Optimized Custom Styling
 st.markdown("""
 <style>
-    .stApp {
-        background-color: #0E1117;
-        color: #FFFFFF;
-    }
-    
-    .main-title {
-        font-size: 2.5rem;
-        font-weight: 800;
-        background: linear-gradient(90deg, #00FF87 0%, #60EFFF 100%);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-align: center;
-        margin-bottom: 0px;
-    }
-    
-    .sub-title {
-        text-align: center;
-        color: #8B949E;
-        font-size: 0.95rem;
-        margin-bottom: 30px;
-    }
-
-    .stChatMessage {
-        background-color: #161B22 !important;
-        border: 1px solid #30363D !important;
-        border-radius: 12px !important;
-        padding: 12px 16px !important;
-        margin-bottom: 12px !important;
-    }
-
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
+    .stApp { background-color: #0E1117; color: #FFFFFF; }
+    .main-title { font-size: 2.5rem; font-weight: 800; background: linear-gradient(90deg, #00FF87 0%, #60EFFF 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin-bottom: 0px; }
+    .sub-title { text-align: center; color: #8B949E; font-size: 0.95rem; margin-bottom: 30px; }
+    .stChatMessage { background-color: #161B22 !important; border: 1px solid #30363D !important; border-radius: 12px !important; margin-bottom: 12px !important; }
+    #MainMenu {visibility: hidden;} footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">🦖 T-REX AI</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Powered by Gemini 3.6 Flash • Instant Stream</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Powered by Gemini 3.6 Flash • Instant Stream Fix</div>', unsafe_allow_html=True)
 
 api_key = st.secrets.get("GEMINI_API_KEY", None)
 
@@ -71,16 +45,27 @@ if prompt := st.chat_input("Ask T-Rex anything..."):
         client = genai.Client(api_key=api_key)
         
         with st.chat_message("assistant"):
-            # Streaming response for fast speed
-            system_prompt = f"You are T-Rex AI, a smart assistant. Give clear, fast, and concise answers. Query: {prompt}"
+            system_prompt = f"You are T-Rex AI, a smart assistant. Query: {prompt}. Be quick!"
             
+            # Streaming Enabled with context fix
             response_stream = client.models.generate_content_stream(
                 model='gemini-3.6-flash',
                 contents=system_prompt
             )
             
-            # Real-time text writing
-            full_response = st.write_stream(chunk.text for chunk in response_stream)
+            # Simple typing effect for perception of speed
+            message_placeholder = st.empty()
+            full_response = ""
+            for chunk in response_stream:
+                if chunk.text:
+                    full_response += chunk.text
+                    # Small delay between chunks for typing effect (0.01 sec)
+                    time.sleep(0.01)
+                    # Instant update in UI
+                    message_placeholder.markdown(full_response + "▌")
+            
+            # Final text without cursor
+            message_placeholder.markdown(full_response)
             st.session_state.messages.append({"role": "assistant", "content": full_response})
                 
     except Exception as e:
