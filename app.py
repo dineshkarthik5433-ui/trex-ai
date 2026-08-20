@@ -85,35 +85,47 @@ def extract_text_from_doc(files):
             extracted_text += file.read().decode("utf-8") + "\n"
     return extracted_text
 
-# Search Context Matching Algorithm (No External Key Needed)
-def get_accurate_answers(query, full_text, top_count):
-    sentences = re.split(r'(?<=[.?!])\s+', full_text)
-    clean_sentences = [s.strip() for s in sentences if len(s.strip()) > 10]
+# Paragraph-based Search Algorithm
+def get_detailed_answers(query, full_text, top_count):
+    # Paragraphs separation
+    paragraphs = [p.strip() for p in full_text.split("\n\n") if len(p.strip()) > 40]
+    
+    if not paragraphs:
+        # Fallback split if paragraph breaks missing
+        paragraphs = [p.strip() for p in full_text.split("\n") if len(p.strip()) > 40]
 
-    if not clean_sentences:
+    if not paragraphs:
         return []
 
-    def get_word_vector(text):
-        words = re.findall(r'\w+', text.lower())
-        return Counter(words)
+    # Stopwords to filter noise words
+    stopwords = {"what", "is", "a", "an", "the", "in", "of", "to", "and", "or", "for", "with", "this", "that", "how"}
 
-    q_vector = get_word_vector(query)
-    sentence_matches = []
+    def get_keywords(text):
+        words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
+        return Counter([w for w in words if w not in stopwords])
 
-    for sentence in clean_sentences:
-        s_vector = get_word_vector(sentence)
-        common_words = set(q_vector.keys()) & set(s_vector.keys())
+    q_vector = get_keywords(query)
+    paragraph_matches = []
+
+    for paragraph in paragraphs:
+        p_vector = get_keywords(paragraph)
+        common_words = set(q_vector.keys()) & set(p_vector.keys())
         
-        num = sum([q_vector[w] * s_vector[w] for w in common_words])
+        num = sum([q_vector[w] * p_vector[w] for w in common_words])
         den1 = sum([q_vector[w]**2 for w in q_vector.keys()])
-        den2 = sum([s_vector[w]**2 for w in s_vector.keys()])
+        den2 = sum([p_vector[w]**2 for w in p_vector.keys()])
         denom = math.sqrt(den1) * math.sqrt(den2)
 
         match_score = num / denom if denom else 0.0
-        sentence_matches.append((match_score, sentence))
+        
+        # Penalize if chunk is only a short heading question
+        if paragraph.strip().endswith("?") and len(paragraph.split()) < 8:
+            match_score *= 0.2
 
-    sentence_matches.sort(key=lambda x: x[0], reverse=True)
-    return [match[1] for match in sentence_matches[:top_count] if match[0] > 0]
+        paragraph_matches.append((match_score, paragraph))
+
+    paragraph_matches.sort(key=lambda x: x[0], reverse=True)
+    return [match[1] for match in paragraph_matches[:top_count] if match[0] > 0]
 
 # Session State Initializer
 if "messages" not in st.session_state:
@@ -150,19 +162,19 @@ if prompt := st.chat_input("Document gurinchi emaina adugu bro..."):
         if uploaded_files:
             document_content = extract_text_from_doc(uploaded_files)
             if document_content.strip():
-                limit = 3 if model_mode == "Flash ⚡" else 5 if model_mode == "Pro 🧠" else 8
-                matched_answers = get_accurate_answers(prompt, document_content, top_count=limit)
+                limit = 2 if model_mode == "Flash ⚡" else 3 if model_mode == "Pro 🧠" else 5
+                matched_answers = get_detailed_answers(prompt, document_content, top_count=limit)
 
                 if matched_answers:
                     reply = f"**🦖 T-Rex Analysis Results ({model_mode}):**\n\n"
                     for idx, point in enumerate(matched_answers, 1):
-                        reply += f"• **Point {idx}:** {point}\n\n"
+                        reply += f"**Point {idx}:**\n{point}\n\n---\n\n"
                 else:
-                    reply = f"Document lo '{prompt}' ki matching details em dorakaledu bro. Try different search terms."
+                    reply = f"Document lo '{prompt}' ki direct paragraphs match avvaledu. Try searching with different keywords."
             else:
                 reply = "Document text extract avvaledu, valid PDF/TXT file upload cheyi bro."
         else:
-            reply = f"T-Rex Engine Ready ({model_mode})! Document attach chesi question aduguthe document analysis start avutundi."
+            reply = f"T-Rex Engine Ready ({model_mode})! 📎 Attach Document option vadukoni PDF upload chesi question adugu bro."
 
         st.write(reply)
         st.session_state.messages.append({"role": "assistant", "content": reply})
