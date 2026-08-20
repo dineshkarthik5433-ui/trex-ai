@@ -1,19 +1,18 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import pypdf
 import io
 import re
 import math
 from collections import Counter
 
-# Page Config
+# Page Configuration
 st.set_page_config(
     page_title="T-Rex AI",
     page_icon="🦖",
     layout="centered"
 )
 
-# Custom High-Performance Styling
+# Custom Styling (Dark Neon Theme)
 st.markdown("""
 <style>
     .stApp {
@@ -24,8 +23,7 @@ st.markdown("""
     .header-container {
         text-align: center;
         padding: 15px;
-        background: rgba(22, 27, 34, 0.65);
-        backdrop-filter: blur(16px);
+        background: rgba(22, 27, 34, 0.85);
         border-radius: 20px;
         border: 1px solid rgba(0, 255, 135, 0.25);
         margin-bottom: 20px;
@@ -66,172 +64,105 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Fluid Waves Animation
-components.html("""
-<script>
-const parentDoc = window.parent.document;
-let canvas = parentDoc.getElementById('fluid-wave-canvas');
-
-if (!canvas) {
-    canvas = parentDoc.createElement('canvas');
-    canvas.id = 'fluid-wave-canvas';
-    canvas.style.position = 'fixed';
-    canvas.style.top = '0';
-    canvas.style.left = '0';
-    canvas.style.width = '100vw';
-    canvas.style.height = '100vh';
-    canvas.style.pointerEvents = 'none';
-    canvas.style.zIndex = '0';
-    parentDoc.body.appendChild(canvas);
-}
-
-const ctx = canvas.getContext('2d');
-let width = canvas.width = parentDoc.defaultView.innerWidth;
-let height = canvas.height = parentDoc.defaultView.innerHeight;
-
-let mouse = { x: width / 2, y: height / 2, targetX: width / 2, targetY: height / 2 };
-
-parentDoc.addEventListener('mousemove', (e) => {
-    mouse.targetX = e.clientX;
-    mouse.targetY = e.clientY;
-});
-
-let step = 0;
-
-function renderFluidWaves() {
-    ctx.clearRect(0, 0, width, height);
-    mouse.x += (mouse.targetX - mouse.x) * 0.05;
-    mouse.y += (mouse.targetY - mouse.y) * 0.05;
-    step += 0.015;
-
-    for (let i = 0; i < 5; i++) {
-        ctx.beginPath();
-        ctx.lineWidth = 1.5;
-        
-        let colorGrad = ctx.createLinearGradient(0, 0, width, 0);
-        colorGrad.addColorStop(0, 'rgba(0, 255, 135, 0.02)');
-        colorGrad.addColorStop(0.5, i % 2 === 0 ? 'rgba(0, 255, 135, 0.12)' : 'rgba(96, 239, 255, 0.12)');
-        colorGrad.addColorStop(1, 'rgba(96, 239, 255, 0.02)');
-        ctx.strokeStyle = colorGrad;
-
-        for (let x = 0; x <= width; x += 20) {
-            let dx = x - mouse.x;
-            let distSq = dx * dx;
-            let mouseEffect = Math.exp(-distSq / (180 * 180)) * (mouse.y - height / 2) * 0.35;
-            let y = height / 2 + Math.sin(x * 0.005 + step + i * 0.8) * 45 + Math.cos(x * 0.008 - step + i) * 20 + mouseEffect;
-
-            if (x === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        }
-        ctx.stroke();
-    }
-    requestAnimationFrame(renderFluidWaves);
-}
-renderFluidWaves();
-</script>
-""", height=0)
-
-# Main UI Header
+# Title Header
 st.markdown("""
 <div class="header-container">
     <div class="main-title">🦖 T-REX AI</div>
 </div>
 """, unsafe_allow_html=True)
 
-# Document Text Parsing Engine
-def extract_document_text(files):
-    text_data = ""
+# Extract Text From Uploaded PDF/TXT Files
+def extract_text_from_doc(files):
+    extracted_text = ""
     for file in files:
         if file.type == "application/pdf":
-            reader = pypdf.PdfReader(io.BytesIO(file.read()))
-            for page in reader.pages:
-                extracted = page.extract_text()
-                if extracted:
-                    text_data += extracted + "\n"
+            pdf_reader = pypdf.PdfReader(io.BytesIO(file.read()))
+            for page in pdf_reader.pages:
+                txt = page.extract_text()
+                if txt:
+                    extracted_text += txt + "\n"
         elif file.type in ["text/plain", "text/markdown"]:
-            text_data += file.read().decode("utf-8") + "\n"
-    return text_data
+            extracted_text += file.read().decode("utf-8") + "\n"
+    return extracted_text
 
-# Built-in Pure Vector Cosine Similarity Search Engine
-def cosine_similarity_search(query, text, top_k):
-    # Sentence Chunking
-    sentences = re.split(r'(?<=[.?!])\s+', text)
-    chunks = [s.strip() for s in sentences if len(s.strip()) > 15]
+# Search Context Matching Algorithm (No External Key Needed)
+def get_accurate_answers(query, full_text, top_count):
+    sentences = re.split(r'(?<=[.?!])\s+', full_text)
+    clean_sentences = [s.strip() for s in sentences if len(s.strip()) > 10]
 
-    if not chunks:
+    if not clean_sentences:
         return []
 
-    # Vectorizer
-    def text_to_vector(text_str):
-        words = re.findall(r'\w+', text_str.lower())
+    def get_word_vector(text):
+        words = re.findall(r'\w+', text.lower())
         return Counter(words)
 
-    query_vec = text_to_vector(query)
+    q_vector = get_word_vector(query)
+    sentence_matches = []
 
-    scores = []
-    for chunk in chunks:
-        chunk_vec = text_to_vector(chunk)
-        intersection = set(query_vec.keys()) & set(chunk_vec.keys())
+    for sentence in clean_sentences:
+        s_vector = get_word_vector(sentence)
+        common_words = set(q_vector.keys()) & set(s_vector.keys())
         
-        numerator = sum([query_vec[x] * chunk_vec[x] for x in intersection])
-        sum1 = sum([query_vec[x]**2 for x in query_vec.keys()])
-        sum2 = sum([chunk_vec[x]**2 for x in chunk_vec.keys()])
-        denominator = math.sqrt(sum1) * math.sqrt(sum2)
+        num = sum([q_vector[w] * s_vector[w] for w in common_words])
+        den1 = sum([q_vector[w]**2 for w in q_vector.keys()])
+        den2 = sum([s_vector[w]**2 for w in s_vector.keys()])
+        denom = math.sqrt(den1) * math.sqrt(den2)
 
-        score = numerator / denominator if denominator else 0.0
-        scores.append((score, chunk))
+        match_score = num / denom if denom else 0.0
+        sentence_matches.append((match_score, sentence))
 
-    scores.sort(key=lambda x: x[0], reverse=True)
-    return [item[1] for item in scores[:top_k] if item[0] > 0]
+    sentence_matches.sort(key=lambda x: x[0], reverse=True)
+    return [match[1] for match in sentence_matches[:top_count] if match[0] > 0]
 
-# Session State
+# Session State Initializer
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Control Bar
-col_toggle, col_space, col_model = st.columns([1.5, 4, 2])
+# Header Dropdowns Bar
+col_attach, col_gap, col_model = st.columns([1.5, 4, 2])
 
-with col_toggle:
-    attach_file = st.popover("📎 Attach Document")
+with col_attach:
+    attach_pop = st.popover("📎 Attach Document")
 
 with col_model:
-    model_choice = st.selectbox("", ["Flash ⚡", "Pro 🧠", "Ultra 🚀"], label_visibility="collapsed")
+    model_mode = st.selectbox("", ["Flash ⚡", "Pro 🧠", "Ultra 🚀"], label_visibility="collapsed")
 
-uploaded_files = attach_file.file_uploader(
-    "Upload PDF or TXT files", 
+uploaded_files = attach_pop.file_uploader(
+    "Upload PDF or TXT", 
     type=["pdf", "txt"], 
     accept_multiple_files=True
 )
 
 # Render Chat History
-for message in st.session_state.messages:
-    avatar = "👤" if message["role"] == "user" else "🦖"
-    with st.chat_message(message["role"], avatar=avatar):
-        st.write(message["content"])
+for msg in st.session_state.messages:
+    icon = "👤" if msg["role"] == "user" else "🦖"
+    with st.chat_message(msg["role"], avatar=icon):
+        st.write(msg["content"])
 
-# User Chat Input
-if prompt := st.chat_input("Ask T-Rex about your document..."):
+# Main Chat Query Processing
+if prompt := st.chat_input("Document gurinchi emaina adugu bro..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="👤"):
         st.write(prompt)
 
     with st.chat_message("assistant", avatar="🦖"):
         if uploaded_files:
-            raw_text = extract_document_text(uploaded_files)
-            if raw_text.strip():
-                k_val = 3 if model_choice == "Flash ⚡" else 5 if model_choice == "Pro 🧠" else 8
-                relevant_chunks = cosine_similarity_search(prompt, raw_text, top_k=k_val)
+            document_content = extract_text_from_doc(uploaded_files)
+            if document_content.strip():
+                limit = 3 if model_mode == "Flash ⚡" else 5 if model_mode == "Pro 🧠" else 8
+                matched_answers = get_accurate_answers(prompt, document_content, top_count=limit)
 
-                if relevant_chunks:
-                    reply = f"**🦖 T-Rex RAG Agent Analysis ({model_choice}):**\n\n"
-                    for idx, chunk in enumerate(relevant_chunks, 1):
-                        reply += f"• **Match {idx}:** {chunk}\n\n"
+                if matched_answers:
+                    reply = f"**🦖 T-Rex Analysis Results ({model_mode}):**\n\n"
+                    for idx, point in enumerate(matched_answers, 1):
+                        reply += f"• **Point {idx}:** {point}\n\n"
                 else:
-                    reply = f"Document lo '{prompt}' ki direct semantic matches dorakaledu bro. Try broader terms."
+                    reply = f"Document lo '{prompt}' ki matching details em dorakaledu bro. Try different search terms."
             else:
-                reply = "Document text extract avvaledu. Valid PDF/TXT file upload cheyandi."
+                reply = "Document text extract avvaledu, valid PDF/TXT file upload cheyi bro."
         else:
-            reply = f"T-Rex RAG Agent Active ({model_choice})! Upload document to search with local vector similarity."
+            reply = f"T-Rex Engine Ready ({model_mode})! Document attach chesi question aduguthe document analysis start avutundi."
 
         st.write(reply)
         st.session_state.messages.append({"role": "assistant", "content": reply})
