@@ -1,14 +1,14 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-# Page Config
+# Page Configuration
 st.set_page_config(
     page_title="T-Rex AI",
     page_icon="🦖",
     layout="centered"
 )
 
-# Custom CSS for Gemini Style Single Capsule (Glitch-Free)
+# Custom High-Performance CSS (Zero Flickering)
 st.markdown("""
 <style>
     .stApp {
@@ -18,7 +18,7 @@ st.markdown("""
 
     .header-container {
         text-align: center;
-        padding: 20px 15px;
+        padding: 15px;
         background: rgba(22, 27, 34, 0.65);
         backdrop-filter: blur(16px);
         border-radius: 20px;
@@ -27,19 +27,19 @@ st.markdown("""
     }
 
     .main-title {
-        font-size: 2.5rem;
+        font-size: 2.3rem;
         font-weight: 900;
         background: linear-gradient(90deg, #00FF87 0%, #60EFFF 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
     }
 
-    /* Style the Chat Input Box as a Unified Gemini Capsule */
+    /* Unified Bottom Input Pill Container */
     div[data-testid="stChatInput"] {
         background-color: #1e1e1e !important;
         border: 1px solid #333333 !important;
         border-radius: 40px !important;
-        padding: 4px 12px !important;
+        padding: 6px 14px !important;
         box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
     }
 
@@ -48,18 +48,7 @@ st.markdown("""
         font-size: 1rem !important;
     }
 
-    /* Top Action Bar Pill */
-    .gemini-toolbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        background: #1e1e1e;
-        border: 1px solid #333333;
-        border-radius: 30px;
-        padding: 4px 12px;
-        margin-bottom: 8px;
-    }
-
+    /* Clean Chat Message Styling */
     .stChatMessage {
         background-color: rgba(22, 27, 34, 0.8) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -68,13 +57,22 @@ st.markdown("""
         margin-bottom: 12px !important;
     }
 
+    /* Minimal Top Selector Bar */
+    .control-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0px 10px;
+        margin-bottom: 10px;
+    }
+
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# Fluid Wave Background Component
+# Smooth Fluid Waves Background Engine
 components.html("""
 <script>
 const parentDoc = window.parent.document;
@@ -139,42 +137,49 @@ renderFluidWaves();
 </script>
 """, height=0)
 
-# Main UI Header
+# Main Header
 st.markdown("""
 <div class="header-container">
     <div class="main-title">🦖 T-REX AI</div>
 </div>
 """, unsafe_allow_html=True)
 
-# Memory Initializer
+# State Management
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display Messages
+# Top Model & Media Controls
+col_toggle, col_space, col_model = st.columns([1.5, 4, 2])
+
+with col_toggle:
+    attach_file = st.popover("📎 Attach File")
+
+with col_model:
+    model_type = st.selectbox("", ["Flash ⚡", "Pro 🧠", "Ultra 🚀"], label_visibility="collapsed")
+
+# Handle File Attachment inside popover to keep interface clean
+uploaded_files = attach_file.file_uploader("Upload Documents or Media", accept_multiple_files=True)
+
+# Render Chat History
 for message in st.session_state.messages:
     avatar = "👤" if message["role"] == "user" else "🦖"
     with st.chat_message(message["role"], avatar=avatar):
         st.write(message["content"])
 
-# Top Control Bar (Model Select & Attachment Toggle)
-col_left, col_mid, col_right = st.columns([1, 4, 2])
-
-with col_left:
-    show_upload = st.checkbox("📎", help="Toggle File Upload")
-
-with col_right:
-    model_choice = st.selectbox("", ["Flash ⚡", "Pro 🧠", "Ultra 🚀"], label_visibility="collapsed")
-
-if show_upload:
-    uploaded_files = st.file_uploader("Upload Files", accept_multiple_files=True)
-
-# Native Smooth Chat Input Box
+# Native Native Chat Input (Prevents Input Glitches)
 if prompt := st.chat_input("Ask T-Rex..."):
+    # Add User Message
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="👤"):
         st.write(prompt)
 
+    # Generate Response
     with st.chat_message("assistant", avatar="🦖"):
-        response = f"Response from T-Rex [{model_choice}]: '{prompt}'"
+        if uploaded_files:
+            files_str = ", ".join([f.name for f in uploaded_files])
+            response = f"Processed '{prompt}' with uploaded files: [{files_str}] using {model_type}."
+        else:
+            response = f"Response for: '{prompt}' using {model_type}."
+        
         st.write(response)
         st.session_state.messages.append({"role": "assistant", "content": response})
