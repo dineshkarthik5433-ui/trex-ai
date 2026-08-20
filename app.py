@@ -1,14 +1,19 @@
 import streamlit as st
 import streamlit.components.v1 as components
+import pypdf
+import io
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
-# Page Configuration
+# Page Config
 st.set_page_config(
     page_title="T-Rex AI",
     page_icon="🦖",
     layout="centered"
 )
 
-# Custom High-Performance CSS (Zero Flickering)
+# Custom High-Performance Styling
 st.markdown("""
 <style>
     .stApp {
@@ -34,7 +39,6 @@ st.markdown("""
         -webkit-text-fill-color: transparent;
     }
 
-    /* Unified Bottom Input Pill Container */
     div[data-testid="stChatInput"] {
         background-color: #1e1e1e !important;
         border: 1px solid #333333 !important;
@@ -48,7 +52,6 @@ st.markdown("""
         font-size: 1rem !important;
     }
 
-    /* Clean Chat Message Styling */
     .stChatMessage {
         background-color: rgba(22, 27, 34, 0.8) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
@@ -57,22 +60,13 @@ st.markdown("""
         margin-bottom: 12px !important;
     }
 
-    /* Minimal Top Selector Bar */
-    .control-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0px 10px;
-        margin-bottom: 10px;
-    }
-
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# Smooth Fluid Waves Background Engine
+# Fluid Waves Background Component
 components.html("""
 <script>
 const parentDoc = window.parent.document;
@@ -137,28 +131,62 @@ renderFluidWaves();
 </script>
 """, height=0)
 
-# Main Header
+# Main UI Header
 st.markdown("""
 <div class="header-container">
     <div class="main-title">🦖 T-REX AI</div>
 </div>
 """, unsafe_allow_html=True)
 
-# State Management
+# Helper Function: Extract Raw Text from Uploaded PDFs
+def extract_text(files):
+    raw_text = ""
+    for file in files:
+        if file.type == "application/pdf":
+            reader = pypdf.PdfReader(io.BytesIO(file.read()))
+            for page in reader.pages:
+                text = page.extract_text()
+                if text:
+                    raw_text += text + "\n"
+        elif file.type in ["text/plain", "text/markdown"]:
+            raw_text += file.read().decode("utf-8") + "\n"
+    return raw_text
+
+# Load Open-Source Free Vector Embeddings Engine
+@st.cache_resource
+def get_embedding_model():
+    return HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+
+embedding_model = get_embedding_model()
+
+# Build Vector Store (RAG Pipeline)
+def build_vector_store(text):
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=500,
+        chunk_overlap=50
+    )
+    chunks = text_splitter.split_text(text)
+    vector_db = FAISS.from_texts(chunks, embedding_model)
+    return vector_db
+
+# Session Initializations
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Top Model & Media Controls
+# Top Control Bar
 col_toggle, col_space, col_model = st.columns([1.5, 4, 2])
 
 with col_toggle:
-    attach_file = st.popover("📎 Attach File")
+    attach_file = st.popover("📎 Attach Document")
 
 with col_model:
-    model_type = st.selectbox("", ["Flash ⚡", "Pro 🧠", "Ultra 🚀"], label_visibility="collapsed")
+    model_choice = st.selectbox("", ["Flash ⚡", "Pro 🧠", "Ultra 🚀"], label_visibility="collapsed")
 
-# Handle File Attachment inside popover to keep interface clean
-uploaded_files = attach_file.file_uploader("Upload Documents or Media", accept_multiple_files=True)
+uploaded_files = attach_file.file_uploader(
+    "Upload PDF or TXT files", 
+    type=["pdf", "txt"], 
+    accept_multiple_files=True
+)
 
 # Render Chat History
 for message in st.session_state.messages:
@@ -166,20 +194,34 @@ for message in st.session_state.messages:
     with st.chat_message(message["role"], avatar=avatar):
         st.write(message["content"])
 
-# Native Native Chat Input (Prevents Input Glitches)
-if prompt := st.chat_input("Ask T-Rex..."):
-    # Add User Message
+# User Chat Input
+if prompt := st.chat_input("Ask T-Rex about your document..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="👤"):
         st.write(prompt)
 
-    # Generate Response
     with st.chat_message("assistant", avatar="🦖"):
         if uploaded_files:
-            files_str = ", ".join([f.name for f in uploaded_files])
-            response = f"Processed '{prompt}' with uploaded files: [{files_str}] using {model_type}."
+            with st.spinner("🦖 RAG Agent indexing & analyzing document..."):
+                raw_text = extract_text(uploaded_files)
+                if raw_text.strip():
+                    # 1. Chunking & FAISS Vector DB Generation
+                    vector_db = build_vector_store(raw_text)
+                    
+                    # 2. Similarity Search Retrieval
+                    k_val = 3 if model_choice == "Flash ⚡" else 6 if model_choice == "Pro 🧠" else 10
+                    retrieved_docs = vector_db.similarity_search(prompt, k=k_val)
+                    
+                    # 3. Construct Contextual RAG Response
+                    context_chunks = [doc.page_content for doc in retrieved_docs]
+                    
+                    response_text = f"**🦖 RAG Agent Analysis ({model_choice}):**\n\n"
+                    for idx, chunk in enumerate(context_chunks, 1):
+                        response_text += f"**Relevant Segment {idx}:**\n\"{chunk.strip()}\"\n\n"
+                else:
+                    response_text = "Uploaded PDF/TXT file lo text format match avvaledu. High-quality text PDF try cheyandi."
         else:
-            response = f"Response for: '{prompt}' using {model_type}."
-        
-        st.write(response)
-        st.session_state.messages.append({"role": "assistant", "content": response})
+            response_text = f"T-Rex RAG Agent Active ({model_choice})! Document upload chesi search cheyandi, Vector Indexing dwara exact precise information retrieve chestundhi."
+
+        st.write(response_text)
+        st.session_state.messages.append({"role": "assistant", "content": response_text})
