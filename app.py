@@ -21,7 +21,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">🦖 T-REX AI</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">Powered by Gemini 3.6 Flash • Instant Stream Fix</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title">Powered by gemini-2.5-flash • Instant Stream Fix</div>', unsafe_allow_html=True)
 
 api_key = st.secrets.get("GEMINI_API_KEY", None)
 
@@ -49,7 +49,7 @@ if prompt := st.chat_input("Ask T-Rex anything..."):
             
             # Streaming Enabled with context fix
             response_stream = client.models.generate_content_stream(
-                model='gemini-3.6-flash',
+                model='gemini-2.5-flash',
                 contents=system_prompt
             )
             
