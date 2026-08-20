@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 
 # Page Config
 st.set_page_config(
@@ -7,29 +8,18 @@ st.set_page_config(
     layout="centered"
 )
 
-# Native CSS Glowing Animated Grid & Mouse Waves Effect
+# Base Styling
 st.markdown("""
 <style>
-    /* Dark Animated Wave Background */
     .stApp {
-        background: linear-gradient(-45deg, #0d1117, #161b22, #002b1d, #001f3f);
-        background-size: 400% 400%;
-        animation: gradientWave 12s ease infinite;
+        background-color: #0d1117;
         color: #f0f6fc;
     }
 
-    /* Ambient Dynamic Glowing Waves Animation */
-    @keyframes gradientWave {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
-    }
-
-    /* Header Container Styling */
     .header-container {
         text-align: center;
         padding: 24px 15px;
-        background: rgba(22, 27, 34, 0.7);
+        background: rgba(22, 27, 34, 0.75);
         backdrop-filter: blur(12px);
         border-radius: 20px;
         border: 1px solid rgba(0, 255, 135, 0.2);
@@ -52,7 +42,6 @@ st.markdown("""
         font-size: 0.95rem;
     }
 
-    /* Chat Messages with Glowing Borders on Hover */
     .stChatMessage {
         background-color: rgba(22, 27, 34, 0.85) !important;
         border: 1px solid #30363d !important;
@@ -60,12 +49,6 @@ st.markdown("""
         padding: 14px 18px !important;
         margin-bottom: 12px !important;
         backdrop-filter: blur(8px);
-        transition: all 0.3s ease;
-    }
-
-    .stChatMessage:hover {
-        border-color: #00FF87 !important;
-        box-shadow: 0 0 12px rgba(0, 255, 135, 0.2);
     }
 
     #MainMenu {visibility: hidden;}
@@ -74,11 +57,85 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# Custom Component for Real-time Mouse Trail Waves
+components.html("""
+<script>
+const parentDoc = window.parent.document;
+let canvas = parentDoc.getElementById('mouse-wave-canvas');
+
+if (!canvas) {
+    canvas = parentDoc.createElement('canvas');
+    canvas.id = 'mouse-wave-canvas';
+    canvas.style.position = 'fixed';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.width = '100vw';
+    canvas.style.height = '100vh';
+    canvas.style.pointerEvents = 'none';
+    canvas.style.zIndex = '99999';
+    parentDoc.body.appendChild(canvas);
+}
+
+const ctx = canvas.getContext('2d');
+let width = canvas.width = parentDoc.defaultView.innerWidth;
+let height = canvas.height = parentDoc.defaultView.innerHeight;
+
+parentDoc.defaultView.addEventListener('resize', () => {
+    width = canvas.width = parentDoc.defaultView.innerWidth;
+    height = canvas.height = parentDoc.defaultView.innerHeight;
+});
+
+let particles = [];
+
+parentDoc.addEventListener('mousemove', (e) => {
+    for (let i = 0; i < 3; i++) {
+        particles.push({
+            x: e.clientX,
+            y: e.clientY,
+            size: Math.random() * 8 + 2,
+            speedX: (Math.random() - 0.5) * 2,
+            speedY: (Math.random() - 0.5) * 2,
+            color: Math.random() > 0.5 ? '#00FF87' : '#60EFFF',
+            alpha: 1
+        });
+    }
+});
+
+function draw() {
+    ctx.clearRect(0, 0, width, height);
+    for (let i = 0; i < particles.length; i++) {
+        let p = particles[i];
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.shadowBlur = 12;
+        ctx.shadowColor = p.color;
+        ctx.fill();
+        ctx.restore();
+
+        p.x += p.speedX;
+        p.y += p.speedY;
+        p.size *= 0.95;
+        p.alpha -= 0.02;
+
+        if (p.alpha <= 0 || p.size <= 0.5) {
+            particles.splice(i, 1);
+            i--;
+        }
+    }
+    requestAnimationFrame(draw);
+}
+draw();
+</script>
+""", height=0)
+
 # Main UI Header
 st.markdown("""
 <div class="header-container">
     <div class="main-title">🦖 T-REX AI</div>
-    <div class="sub-title">Dynamic Ambient Wave Theme Active</div>
+    <div class="sub-title">Interactive Mouse Glow Trail Active</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -99,6 +156,6 @@ if prompt := st.chat_input("Message T-Rex AI..."):
         st.write(prompt)
 
     with st.chat_message("assistant", avatar="🦖"):
-        response = f"Ambient Glow Wave UI Active! Received: '{prompt}'"
+        response = f"Mouse Wave Effect Active! Received: '{prompt}'"
         st.write(response)
         st.session_state.messages.append({"role": "assistant", "content": response})
