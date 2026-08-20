@@ -8,7 +8,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Base Styling
+# Base Dark Styling
 st.markdown("""
 <style>
     .stApp {
@@ -24,7 +24,7 @@ st.markdown("""
         border-radius: 20px;
         border: 1px solid rgba(0, 255, 135, 0.2);
         margin-bottom: 25px;
-        box-shadow: 0 0 20px rgba(0, 255, 135, 0.15);
+        box-shadow: 0 0 15px rgba(0, 255, 135, 0.1);
     }
 
     .main-title {
@@ -57,77 +57,37 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Custom Component for Real-time Mouse Trail Waves
+# Soft & Subtle Interactive Mouse Spotlight
 components.html("""
 <script>
 const parentDoc = window.parent.document;
-let canvas = parentDoc.getElementById('mouse-wave-canvas');
+let glowDiv = parentDoc.getElementById('mouse-glow-bg');
 
-if (!canvas) {
-    canvas = parentDoc.createElement('canvas');
-    canvas.id = 'mouse-wave-canvas';
-    canvas.style.position = 'fixed';
-    canvas.style.top = '0';
-    canvas.style.left = '0';
-    canvas.style.width = '100vw';
-    canvas.style.height = '100vh';
-    canvas.style.pointerEvents = 'none';
-    canvas.style.zIndex = '99999';
-    parentDoc.body.appendChild(canvas);
+if (!glowDiv) {
+    glowDiv = parentDoc.createElement('div');
+    glowDiv.id = 'mouse-glow-bg';
+    glowDiv.style.position = 'fixed';
+    glowDiv.style.top = '0';
+    glowDiv.style.left = '0';
+    glowDiv.style.width = '100vw';
+    glowDiv.style.height = '100vh';
+    glowDiv.style.pointerEvents = 'none';
+    glowDiv.style.zIndex = '0';
+    glowDiv.style.transition = 'background 0.15s ease-out';
+    parentDoc.body.appendChild(glowDiv);
 }
-
-const ctx = canvas.getContext('2d');
-let width = canvas.width = parentDoc.defaultView.innerWidth;
-let height = canvas.height = parentDoc.defaultView.innerHeight;
-
-parentDoc.defaultView.addEventListener('resize', () => {
-    width = canvas.width = parentDoc.defaultView.innerWidth;
-    height = canvas.height = parentDoc.defaultView.innerHeight;
-});
-
-let particles = [];
 
 parentDoc.addEventListener('mousemove', (e) => {
-    for (let i = 0; i < 3; i++) {
-        particles.push({
-            x: e.clientX,
-            y: e.clientY,
-            size: Math.random() * 8 + 2,
-            speedX: (Math.random() - 0.5) * 2,
-            speedY: (Math.random() - 0.5) * 2,
-            color: Math.random() > 0.5 ? '#00FF87' : '#60EFFF',
-            alpha: 1
-        });
-    }
+    const x = e.clientX;
+    const y = e.clientY;
+    
+    // Very subtle, soft Radial Gradient Glow centered at mouse cursor
+    glowDiv.style.background = `radial-gradient(400px circle at ${x}px ${y}px, rgba(0, 255, 135, 0.08), rgba(96, 239, 255, 0.04), transparent 80%)`;
 });
 
-function draw() {
-    ctx.clearRect(0, 0, width, height);
-    for (let i = 0; i < particles.length; i++) {
-        let p = particles[i];
-        ctx.save();
-        ctx.globalAlpha = p.alpha;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.shadowBlur = 12;
-        ctx.shadowColor = p.color;
-        ctx.fill();
-        ctx.restore();
-
-        p.x += p.speedX;
-        p.y += p.speedY;
-        p.size *= 0.95;
-        p.alpha -= 0.02;
-
-        if (p.alpha <= 0 || p.size <= 0.5) {
-            particles.splice(i, 1);
-            i--;
-        }
-    }
-    requestAnimationFrame(draw);
-}
-draw();
+parentDoc.addEventListener('mouseleave', () => {
+    glowDiv.style.background = 'transparent';
+});
 </script>
 """, height=0)
 
@@ -135,7 +95,7 @@ draw();
 st.markdown("""
 <div class="header-container">
     <div class="main-title">🦖 T-REX AI</div>
-    <div class="sub-title">Interactive Mouse Glow Trail Active</div>
+    <div class="sub-title">Soft Mouse Spotlight Active</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -156,6 +116,6 @@ if prompt := st.chat_input("Message T-Rex AI..."):
         st.write(prompt)
 
     with st.chat_message("assistant", avatar="🦖"):
-        response = f"Mouse Wave Effect Active! Received: '{prompt}'"
+        response = f"Soft Glow UI Active! Received: '{prompt}'"
         st.write(response)
         st.session_state.messages.append({"role": "assistant", "content": response})
