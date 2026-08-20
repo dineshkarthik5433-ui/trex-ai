@@ -12,7 +12,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# Dark Neon Theme UI
+# Dark Neon Theme Styling
 st.markdown("""
 <style>
     .stApp {
@@ -64,24 +64,24 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Title Header
+# Main Title Header
 st.markdown("""
 <div class="header-container">
     <div class="main-title">🦖 T-REX AI</div>
 </div>
 """, unsafe_allow_html=True)
 
-# Load Free Local Embedding & Chat Models
+# Load Local Models Safely
 @st.cache_resource
 def load_models():
     embedder = SentenceTransformer('all-MiniLM-L6-v2')
-    # Lightweight, fast, free local LLM for conversational responses
-    generator = pipeline('text2text-generation', model='google/flan-t5-base')
+    # Standard task name compatible with transformers on Python 3.14
+    generator = pipeline('text-generation', model='gpt2')
     return embedder, generator
 
 embed_model, chat_generator = load_models()
 
-# Extract Document Content
+# Extract PDF Text
 def extract_pdf_text(files):
     full_text = ""
     for file in files:
@@ -133,7 +133,7 @@ def semantic_search(query, text, top_k):
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Top Bar Controls
+# Control Bar
 col_attach, col_gap, col_model = st.columns([1.5, 4, 2])
 
 with col_attach:
@@ -163,7 +163,6 @@ if prompt := st.chat_input("Ask T-Rex AI anything..."):
     with st.chat_message("assistant", avatar="🦖"):
         prompt_lower = prompt.lower().strip()
         
-        # Friendly Default Responses for Simple Greetings
         casual_map = {
             "hi": "Hello! How can I help you today?",
             "hello": "Hey there! Feel free to ask me anything or upload a document.",
@@ -193,17 +192,11 @@ if prompt := st.chat_input("Ask T-Rex AI anything..."):
                             clean_res = re.sub(r'^\d+[\.\s\-]+', '', res)
                             reply += f"**Point {idx}:**\n{clean_res}\n\n---\n\n"
                     else:
-                        # Fallback to local Chat LLM when query is not directly in PDF
-                        llm_out = chat_generator(f"Answer friendly in English: {prompt}", max_length=100)[0]['generated_text']
-                        reply = f"I couldn't find exact matches in the document, but here is my answer:\n\n{llm_out}"
+                        reply = f"I couldn't find exact matches for '{prompt}' in the attached document."
             else:
                 reply = "The uploaded file contains no readable text."
         else:
-            # Free General Conversational Response without Document
-            with st.spinner("T-Rex is thinking..."):
-                llm_prompt = f"Respond politely and conversationally: {prompt}"
-                output = chat_generator(llm_prompt, max_length=120)[0]['generated_text']
-                reply = output if len(output) > 5 else "I am doing well! You can ask me general questions or attach a document to analyze."
+            reply = f"I am active in **{model_choice}** mode! Upload a document to analyze its contents, or ask me conversational questions."
 
         st.write(reply)
         st.session_state.messages.append({"role": "assistant", "content": reply})
