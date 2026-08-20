@@ -2,17 +2,16 @@ import streamlit as st
 import pypdf
 import io
 import re
-import math
-from collections import Counter
+from transformers import pipeline
 
-# Page Configuration
+# Page Config
 st.set_page_config(
     page_title="T-Rex AI",
     page_icon="🦖",
     layout="centered"
 )
 
-# Custom Styling (Dark Neon Theme)
+# Custom High-Performance Styling
 st.markdown("""
 <style>
     .stApp {
@@ -23,7 +22,7 @@ st.markdown("""
     .header-container {
         text-align: center;
         padding: 15px;
-        background: rgba(22, 27, 34, 0.85);
+        background: rgba(22, 27, 34, 0.65);
         border-radius: 20px;
         border: 1px solid rgba(0, 255, 135, 0.25);
         margin-bottom: 20px;
@@ -58,101 +57,95 @@ st.markdown("""
         margin-bottom: 12px !important;
     }
 
+    .topic-box {
+        background: rgba(0, 255, 135, 0.05);
+        border-left: 4px solid #00FF87;
+        padding: 10px 15px;
+        margin-bottom: 15px;
+        border-radius: 4px;
+    }
+
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# Title Header
+# Main Title Header
 st.markdown("""
 <div class="header-container">
     <div class="main-title">🦖 T-REX AI</div>
 </div>
 """, unsafe_allow_html=True)
 
-# Extract Text From Uploaded PDF/TXT Files
-def extract_text_from_doc(files):
-    extracted_text = ""
+# Document Text Extractor
+def extract_document_text(files):
+    full_text = ""
     for file in files:
         if file.type == "application/pdf":
-            pdf_reader = pypdf.PdfReader(io.BytesIO(file.read()))
-            for page in pdf_reader.pages:
+            reader = pypdf.PdfReader(io.BytesIO(file.read()))
+            for page in reader.pages:
                 txt = page.extract_text()
                 if txt:
-                    extracted_text += txt + "\n"
+                    full_text += txt + "\n"
         elif file.type in ["text/plain", "text/markdown"]:
-            extracted_text += file.read().decode("utf-8") + "\n"
-    return extracted_text
+            full_text += file.read().decode("utf-8") + "\n"
+    return full_text
 
-# Paragraph-based Search Algorithm
-def get_detailed_answers(query, full_text, top_count):
-    # Paragraphs separation
-    paragraphs = [p.strip() for p in full_text.split("\n\n") if len(p.strip()) > 40]
+# Structural Topic Segmenter Logic
+def find_topic_segments(query, text, mode_limit):
+    # Separate topics by headings or section numbers (e.g., 1.1, 1.2, or All Caps)
+    sections = re.split(r'\n(?=[0-9]+\.[0-9]+|[A-Z\s]{4,}:)', text)
     
-    if not paragraphs:
-        # Fallback split if paragraph breaks missing
-        paragraphs = [p.strip() for p in full_text.split("\n") if len(p.strip()) > 40]
+    if len(sections) < 2:
+        sections = [s.strip() for s in text.split("\n\n") if len(s.strip()) > 50]
 
-    if not paragraphs:
-        return []
+    query_words = set(re.findall(r'\b[a-zA-Z]{3,}\b', query.lower()))
+    stopwords = {"what", "how", "why", "give", "tell", "topics", "pdf", "this", "that", "there"}
+    filtered_query = query_words - stopwords
 
-    # Stopwords to filter noise words
-    stopwords = {"what", "is", "a", "an", "the", "in", "of", "to", "and", "or", "for", "with", "this", "that", "how"}
+    matched_results = []
 
-    def get_keywords(text):
-        words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
-        return Counter([w for w in words if w not in stopwords])
+    for section in sections:
+        section_lower = section.lower()
+        # Calculate overlap score
+        score = sum(1 for word in filtered_query if word in section_lower)
+        if score > 0 or not filtered_query:
+            # Extract First Line as Topic Title
+            lines = [l.strip() for l in section.split("\n") if l.strip()]
+            topic_title = lines[0] if lines else "General Topic"
+            content = " ".join(lines[1:]) if len(lines) > 1 else section
+            matched_results.append((score, topic_title, content))
 
-    q_vector = get_keywords(query)
-    paragraph_matches = []
-
-    for paragraph in paragraphs:
-        p_vector = get_keywords(paragraph)
-        common_words = set(q_vector.keys()) & set(p_vector.keys())
-        
-        num = sum([q_vector[w] * p_vector[w] for w in common_words])
-        den1 = sum([q_vector[w]**2 for w in q_vector.keys()])
-        den2 = sum([p_vector[w]**2 for w in p_vector.keys()])
-        denom = math.sqrt(den1) * math.sqrt(den2)
-
-        match_score = num / denom if denom else 0.0
-        
-        # Penalize if chunk is only a short heading question
-        if paragraph.strip().endswith("?") and len(paragraph.split()) < 8:
-            match_score *= 0.2
-
-        paragraph_matches.append((match_score, paragraph))
-
-    paragraph_matches.sort(key=lambda x: x[0], reverse=True)
-    return [match[1] for match in paragraph_matches[:top_count] if match[0] > 0]
+    matched_results.sort(key=lambda x: x[0], reverse=True)
+    return matched_results[:mode_limit]
 
 # Session State Initializer
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Header Dropdowns Bar
-col_attach, col_gap, col_model = st.columns([1.5, 4, 2])
+# Control Bar
+col_attach, col_space, col_model = st.columns([1.5, 4, 2])
 
 with col_attach:
     attach_pop = st.popover("📎 Attach Document")
 
 with col_model:
-    model_mode = st.selectbox("", ["Flash ⚡", "Pro 🧠", "Ultra 🚀"], label_visibility="collapsed")
+    model_choice = st.selectbox("", ["Flash ⚡", "Pro 🧠", "Ultra 🚀"], label_visibility="collapsed")
 
 uploaded_files = attach_pop.file_uploader(
-    "Upload PDF or TXT", 
+    "Upload PDF or TXT files", 
     type=["pdf", "txt"], 
     accept_multiple_files=True
 )
 
 # Render Chat History
-for msg in st.session_state.messages:
-    icon = "👤" if msg["role"] == "user" else "🦖"
-    with st.chat_message(msg["role"], avatar=icon):
-        st.write(msg["content"])
+for message in st.session_state.messages:
+    avatar = "👤" if message["role"] == "user" else "🦖"
+    with st.chat_message(message["role"], avatar=avatar):
+        st.write(message["content"])
 
-# Main Chat Query Processing
+# User Chat Input
 if prompt := st.chat_input("Document gurinchi emaina adugu bro..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="👤"):
@@ -160,21 +153,24 @@ if prompt := st.chat_input("Document gurinchi emaina adugu bro..."):
 
     with st.chat_message("assistant", avatar="🦖"):
         if uploaded_files:
-            document_content = extract_text_from_doc(uploaded_files)
-            if document_content.strip():
-                limit = 2 if model_mode == "Flash ⚡" else 3 if model_mode == "Pro 🧠" else 5
-                matched_answers = get_detailed_answers(prompt, document_content, top_count=limit)
+            raw_text = extract_document_text(uploaded_files)
+            if raw_text.strip():
+                limit = 2 if model_choice == "Flash ⚡" else 4 if model_choice == "Pro 🧠" else 7
+                segments = find_topic_segments(prompt, raw_text, mode_limit=limit)
 
-                if matched_answers:
-                    reply = f"**🦖 T-Rex Analysis Results ({model_mode}):**\n\n"
-                    for idx, point in enumerate(matched_answers, 1):
-                        reply += f"**Point {idx}:**\n{point}\n\n---\n\n"
+                if segments:
+                    response_md = f"**🦖 T-Rex Structured Analysis ({model_choice}):**\n\n"
+                    for idx, (score, title, body) in enumerate(segments, 1):
+                        response_md += f"📌 **Topic {idx}: {title}**\n\n{body}\n\n---\n\n"
+                    st.markdown(response_md)
+                    st.session_state.messages.append({"role": "assistant", "content": response_md})
                 else:
-                    reply = f"Document lo '{prompt}' ki direct paragraphs match avvaledu. Try searching with different keywords."
+                    err_msg = f"Document lo '{prompt}' ki matching topics ledu bro."
+                    st.write(err_msg)
+                    st.session_state.messages.append({"role": "assistant", "content": err_msg})
             else:
-                reply = "Document text extract avvaledu, valid PDF/TXT file upload cheyi bro."
+                st.write("PDF lo text blank undi bro.")
         else:
-            reply = f"T-Rex Engine Ready ({model_mode})! 📎 Attach Document option vadukoni PDF upload chesi question adugu bro."
-
-        st.write(reply)
-        st.session_state.messages.append({"role": "assistant", "content": reply})
+            def_msg = f"T-Rex Ready ({model_choice})! Attach document option dwara PDF upload cheyi bro."
+            st.write(def_msg)
+            st.session_state.messages.append({"role": "assistant", "content": def_msg})
