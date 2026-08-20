@@ -3,8 +3,9 @@ import pypdf
 import io
 import re
 from sentence_transformers import SentenceTransformer, util
+from transformers import pipeline
 
-# Page Config
+# Page Configuration
 st.set_page_config(
     page_title="T-Rex AI",
     page_icon="🦖",
@@ -63,21 +64,24 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Main Title Header
+# Title Header
 st.markdown("""
 <div class="header-container">
     <div class="main-title">🦖 T-REX AI</div>
 </div>
 """, unsafe_allow_html=True)
 
-# Load Local AI Embeddings Model (No Keys Required)
+# Load Free Local Embedding & Chat Models
 @st.cache_resource
-def load_embed_model():
-    return SentenceTransformer('all-MiniLM-L6-v2')
+def load_models():
+    embedder = SentenceTransformer('all-MiniLM-L6-v2')
+    # Lightweight, fast, free local LLM for conversational responses
+    generator = pipeline('text2text-generation', model='google/flan-t5-base')
+    return embedder, generator
 
-embed_model = load_embed_model()
+embed_model, chat_generator = load_models()
 
-# Extract Text From PDF
+# Extract Document Content
 def extract_pdf_text(files):
     full_text = ""
     for file in files:
@@ -91,21 +95,19 @@ def extract_pdf_text(files):
             full_text += file.read().decode("utf-8") + "\n"
     return full_text
 
-# Topic Extractor without Duplicate Numbers
+# Topic Extractor
 def extract_clean_topics(text):
     lines = text.split("\n")
     topics = []
     for line in lines:
         clean = line.strip()
-        # Clean heading patterns
         if re.match(r'^(?:\d+\.\d*|\d+\b|[A-Z0-9\s\.\-]{3,50})$', clean) or (len(clean) < 60 and clean.istitle()):
-            # Strip extra starting digits to fix double numbering bug
             cleaned_title = re.sub(r'^\d+[\.\s\-]+', '', clean)
             if cleaned_title and cleaned_title not in topics and len(cleaned_title) > 3:
                 topics.append(cleaned_title)
     return topics[:12]
 
-# AI Vector Similarity Search
+# Local Vector Search
 def semantic_search(query, text, top_k):
     chunks = [c.strip() for c in text.split("\n\n") if len(c.strip()) > 30]
     if not chunks:
@@ -122,16 +124,16 @@ def semantic_search(query, text, top_k):
 
     matched_chunks = []
     for score, idx in zip(top_results[0], top_results[1]):
-        if score.item() > 0.25:  # Similarity threshold
+        if score.item() > 0.2:
             matched_chunks.append(chunks[idx.item()])
 
     return matched_chunks
 
-# Session State Initializer
+# Session State
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Header Dropdowns Bar
+# Top Bar Controls
 col_attach, col_gap, col_model = st.columns([1.5, 4, 2])
 
 with col_attach:
@@ -146,13 +148,13 @@ uploaded_files = attach_pop.file_uploader(
     accept_multiple_files=True
 )
 
-# Render Chat History
+# Display Chat History
 for message in st.session_state.messages:
     avatar = "👤" if message["role"] == "user" else "🦖"
     with st.chat_message(message["role"], avatar=avatar):
         st.write(message["content"])
 
-# User Chat Input
+# User Chat Handler
 if prompt := st.chat_input("Ask T-Rex AI anything..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user", avatar="👤"):
@@ -161,32 +163,26 @@ if prompt := st.chat_input("Ask T-Rex AI anything..."):
     with st.chat_message("assistant", avatar="🦖"):
         prompt_lower = prompt.lower().strip()
         
-        # Conversational handling for casual inputs like "ok", "hi"
-        casual_replies = {
-            "ok": "Got it! Let me know if you need anything else from the document.",
-            "okay": "Sure! Ask me any question about your PDF.",
-            "hi": "Hello! Upload your document and ask me anything.",
-            "hello": "Hey there! How can I help you analyze your document?",
-            "thanks": "You're welcome! Glad to help.",
-            "thank you": "You're welcome!"
+        # Friendly Default Responses for Simple Greetings
+        casual_map = {
+            "hi": "Hello! How can I help you today?",
+            "hello": "Hey there! Feel free to ask me anything or upload a document.",
+            "ok": "Got it! Let me know what you'd like to do next.",
+            "okay": "Sure thing! What's on your mind?"
         }
 
-        if prompt_lower in casual_replies:
-            reply = casual_replies[prompt_lower]
+        if prompt_lower in casual_map:
+            reply = casual_map[prompt_lower]
         elif uploaded_files:
             raw_text = extract_pdf_text(uploaded_files)
             if raw_text.strip():
-                topic_triggers = ["topic", "topics", "heading", "headings", "index", "contents", "table of contents"]
-                is_topic_request = any(t in prompt_lower for t in topic_triggers)
-
-                if is_topic_request:
+                topic_triggers = ["topic", "topics", "heading", "headings", "index", "contents"]
+                if any(t in prompt_lower for t in topic_triggers):
                     topics = extract_clean_topics(raw_text)
                     if topics:
-                        reply = f"**🦖 PDF Document Topics ({model_choice}):**\n\n"
-                        for idx, topic in enumerate(topics, 1):
-                            reply += f"• **{topic}**\n"
+                        reply = f"**🦖 PDF Document Topics ({model_choice}):**\n\n" + "\n".join([f"• **{top}**" for top in topics])
                     else:
-                        reply = "No distinct topic headings were detected in this document."
+                        reply = "No distinct headings were found in this document."
                 else:
                     k_val = 2 if model_choice == "Flash ⚡" else 3 if model_choice == "Pro 🧠" else 5
                     results = semantic_search(prompt, raw_text, top_k=k_val)
@@ -194,15 +190,20 @@ if prompt := st.chat_input("Ask T-Rex AI anything..."):
                     if results:
                         reply = f"**🦖 T-Rex Analysis Results ({model_choice}):**\n\n"
                         for idx, res in enumerate(results, 1):
-                            # Clean up redundant internal numbering
                             clean_res = re.sub(r'^\d+[\.\s\-]+', '', res)
                             reply += f"**Point {idx}:**\n{clean_res}\n\n---\n\n"
                     else:
-                        reply = f"I couldn't find any relevant details for '{prompt}' in the document. Please try asking with different terms."
+                        # Fallback to local Chat LLM when query is not directly in PDF
+                        llm_out = chat_generator(f"Answer friendly in English: {prompt}", max_length=100)[0]['generated_text']
+                        reply = f"I couldn't find exact matches in the document, but here is my answer:\n\n{llm_out}"
             else:
-                reply = "The uploaded file appears to be empty."
+                reply = "The uploaded file contains no readable text."
         else:
-            reply = f"T-Rex Active ({model_choice})! Please attach a PDF or TXT document using the 📎 button to start analyzing."
+            # Free General Conversational Response without Document
+            with st.spinner("T-Rex is thinking..."):
+                llm_prompt = f"Respond politely and conversationally: {prompt}"
+                output = chat_generator(llm_prompt, max_length=120)[0]['generated_text']
+                reply = output if len(output) > 5 else "I am doing well! You can ask me general questions or attach a document to analyze."
 
         st.write(reply)
         st.session_state.messages.append({"role": "assistant", "content": reply})
