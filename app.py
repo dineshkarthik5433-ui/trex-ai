@@ -1,5 +1,6 @@
 import streamlit as st
 import requests
+import urllib.parse
 
 # Page Config
 st.set_page_config(
@@ -49,24 +50,17 @@ if prompt := st.chat_input("Ask T-Rex anything..."):
     with st.chat_message("assistant"):
         with st.spinner("T-Rex is thinking..."):
             try:
-                # Direct Public AI Engine Request
-                response = requests.post(
-                    "https://text.pollinations.ai/",
-                    json={
-                        "messages": [
-                            {"role": "system", "content": "You are T-Rex AI, a smart, witty, and extremely fast AI assistant."},
-                            {"role": "user", "content": prompt}
-                        ],
-                        "model": "openai"
-                    },
-                    timeout=15
-                )
+                # Direct Fast Public Endpoint
+                encoded_prompt = urllib.parse.quote(prompt)
+                url = f"https://text.pollinations.ai/{encoded_prompt}?model=openai&system=You%20are%20T-Rex%20AI,%20a%20helpful%20assistant"
                 
-                if response.status_code == 200:
+                response = requests.get(url, timeout=10)
+                
+                if response.status_code == 200 and response.text.strip():
                     reply = response.text
                     st.write(reply)
                     st.session_state.messages.append({"role": "assistant", "content": reply})
                 else:
-                    st.error("Engine busy! Please try asking again.")
+                    st.error("Engine busy! Please ask again.")
             except Exception as e:
-                st.error("Network issue, please refresh and retry!")
+                st.error("Network issue, please try again!")
